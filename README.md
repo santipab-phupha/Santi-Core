@@ -156,6 +156,7 @@ and preview server register these routes; static hosting alone cannot serve them
 ```sh
 pnpm --ignore-workspace exec tsc --noEmit
 pnpm --ignore-workspace run build
+pnpm --ignore-workspace run check:server
 node --experimental-strip-types --test server/*.test.ts src/*.test.ts
 ```
 

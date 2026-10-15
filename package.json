@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "format": "oxfmt",
     "test": "node --experimental-strip-types --test server/*.test.ts src/*.test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check:server": "node scripts/check-server-build.mjs"
   },
   "dependencies": {
     "fast-xml-parser": "^5.11.2",
