@@ -1,0 +1,15 @@
+{
+  "title": "Santi-Core — Crypto Research Workspace",
+  "icons": {
+    "icon": "/favicon.svg?v=santi-core"
+  },
+  "description": "Track leading crypto assets, follow news and tokenomics, and collect source evidence in one research workspace.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  },
+  "language": "en"
+}

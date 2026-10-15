@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" fill="none">
+  <title>Santi-Core</title>
+  <defs>
+    <linearGradient id="brand" x1="4" y1="0" x2="44" y2="48" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#9859EB"/>
+      <stop offset="1" stop-color="#5D2EC2"/>
+    </linearGradient>
+  </defs>
+  <rect width="48" height="48" rx="13" fill="url(#brand)"/>
+  <path d="M34 11H21L10 22H19L25 16H29L34 11Z" fill="white"/>
+  <path d="M14 37H27L38 26H29L23 32H19L14 37Z" fill="white"/>
+  <path d="M24 18L30 24L24 30L18 24L24 18Z" fill="#DCC8FF"/>
+</svg>

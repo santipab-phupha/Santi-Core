@@ -1,0 +1,66 @@
+.analysis-dialog { width: min(1000px, calc(100% - 40px)); max-width: none; max-height: min(92dvh, 1100px); padding: 0; margin: auto; overflow: auto; overscroll-behavior: contain; color: #362245; border: 1px solid #e7d8f5; border-radius: 26px; background: #fefcff; box-shadow: 0 32px 100px #32124b40, 0 0 0 6px #ffffff16; scrollbar-width: thin; scrollbar-color: #d9c6e9 transparent; }
+.analysis-dialog[open] { animation: analysis-appear .25s ease-out; }
+.analysis-dialog::backdrop { background: #25133570; backdrop-filter: blur(9px); animation: analysis-backdrop .2s ease-out; }
+.analysis-modal-surface { background: radial-gradient(ellipse 650px 450px at 80% 0, #f0e4ff99, transparent 80%), #fefcff; }
+.analysis-modal-header { position: sticky; top: 0; z-index: 5; display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding: 27px 32px 23px; border-bottom: 1px solid #eee5f5; background: #fefcffed; backdrop-filter: blur(16px); }
+.analysis-modal-eyebrow { color: #9a76b6; font: 9px var(--numbers); letter-spacing: 1.9px; }
+.analysis-modal-header h1 { margin: 7px 0 12px; color: #422253; font-size: clamp(26px, 4vw, 36px); font-weight: 500; line-height: 1.2; letter-spacing: -1.2px; }
+.analysis-modal-asset { display: inline-flex; align-items: center; gap: 8px; color: #8e739f; font-size: 12px; }
+.analysis-modal-asset img { border-radius: 50%; }
+.analysis-modal-asset b { color: #ac90be; font: 10px var(--numbers); text-transform: uppercase; }
+.analysis-modal-close { display: grid; place-items: center; flex-shrink: 0; width: 38px; height: 38px; padding: 0; color: #916ca7; border: 1px solid #e8dcf1; border-radius: 50%; background: #fff; transition: background .2s, color .2s; }
+.analysis-modal-close:hover { color: #6c31ad; background: #f3eafb; }
+.analysis-modal-body { padding: 24px 32px 30px; }
+.analysis-modal-message { padding: 50px 10px; color: #967aa7; text-align: center; }
+.analysis-dialog .debate-page { padding: 0; }
+.analysis-dialog .debate-heading { margin-bottom: 22px; }
+.analysis-dialog .debate-heading h2 { color: #745585; font-size: 16px; font-weight: 500; }
+.analysis-dialog .debate-actions button { padding: 8px 12px; font-size: 11px; }
+.analysis-dialog .debate-arena { gap: 22px; padding: 24px 18px 20px; border-radius: 18px; box-shadow: none; }
+.analysis-dialog .agent-orb { width: 68px; height: 68px; margin-bottom: 18px; border-radius: 22px; }
+.analysis-dialog .agent-orb .agent-avatar { width: 47px; height: 47px; }
+.analysis-dialog .agent-orbit { inset: -7px; border-radius: 29px; }
+.analysis-dialog .debate-agent h2 { font-size: 22px; }
+.analysis-dialog .debate-agent > p { font-size: 11px; }
+.analysis-dialog .debate-connection { display: none; }
+.analysis-dialog .debate-progress { margin: 24px auto 28px; }
+.analysis-dialog .debate-results { margin-top: 30px; }
+.analysis-dialog .debate-footnote { margin-bottom: 0; }
+.analysis-dialog .debate-audio-zone.is-embedded { margin-top: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
+.analysis-dialog .is-embedded .audio-zone-heading h2 { font-size: 24px; }
+.debate-loader { display: grid; justify-items: center; margin: 0 auto 26px; padding: 3px 0 13px; text-align: center; }
+.debate-loader-art { position: relative; display: grid; place-items: center; width: 190px; height: 190px; margin-bottom: 8px; isolation: isolate; }
+.debate-loader-art::before { content: ""; position: absolute; inset: 8px; z-index: -1; border-radius: 50%; background: radial-gradient(circle, #ddc2f766, #f4eafe20 65%, transparent 70%); }
+.debate-loader-ring { position: absolute; inset: 30px; border: 1px solid #e7d9f3; border-radius: 50%; }
+.debate-loader-ring::before { content: ""; position: absolute; inset: -1px; border: 2px solid transparent; border-top-color: #a477d6; border-right-color: #e5c9fa; border-radius: inherit; animation: debate-orbit 2.3s linear infinite; }
+.debate-loader-ring.inner { inset: 45px; border-style: dashed; border-color: #d8bceca0; animation: debate-orbit 12s linear infinite reverse; }
+.debate-loader-center { display: grid; place-items: center; width: 62px; height: 62px; border: 1px solid #e2d0f1; border-radius: 22px; color: #9867cb; background: linear-gradient(145deg, #fff, #f2e5ff); box-shadow: 0 10px 30px #8e51bd18; }
+.debate-loader-orbit { position: absolute; inset: 9px; animation: debate-orbit 9s linear infinite; }
+.debate-loader-avatar { position: absolute; display: grid; place-items: center; width: 43px; height: 43px; border: 1px solid #d4ecdf; border-radius: 50%; color: #299c76; background: #f1fbf6; box-shadow: 0 4px 16px #3b875c14; animation: debate-orbit 9s linear infinite reverse; }
+.debate-loader-avatar.bull { top: 12px; left: 2px; }
+.debate-loader-avatar.bear { right: 2px; bottom: 12px; color: #cc708b; border-color: #f0dce4; background: #fff5f8; }
+.debate-loader-avatar .agent-avatar { width: 29px; height: 29px; transform: none; }
+.debate-loader h3 { color: #704889; font-size: 19px; font-weight: 500; letter-spacing: -.4px; }
+.debate-loader p { margin-top: 8px; color: #ab91ba; font-size: 12px; }
+@keyframes debate-orbit { to { transform: rotate(360deg); } }
+@keyframes analysis-appear { from { opacity: 0; transform: translateY(12px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes analysis-backdrop { from { opacity: 0; } to { opacity: 1; } }
+@media (max-width: 640px) {
+  .analysis-dialog { width: calc(100% - 20px); max-height: 94dvh; border-radius: 21px; }
+  .analysis-modal-header { gap: 12px; padding: 22px 20px 18px; }
+  .analysis-modal-header h1 { font-size: 27px; }
+  .analysis-modal-eyebrow { font-size: 8px; letter-spacing: 1.2px; }
+  .analysis-modal-body { padding: 20px 16px 24px; }
+  .analysis-dialog .debate-heading { gap: 10px; align-items: center; }
+  .analysis-dialog .debate-heading h2 { font-size: 14px; }
+  .analysis-dialog .debate-arena { gap: 12px; padding: 20px 10px 16px; }
+  .analysis-dialog .agent-task { font-size: 9px; }
+  .analysis-dialog .debate-agent h2 { font-size: 19px; }
+  .analysis-dialog .debate-agent > p { font-size: 10px; }
+  .debate-loader { margin-bottom: 20px; }
+  .debate-loader-art { width: 170px; height: 170px; }
+  .debate-loader h3 { font-size: 17px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .analysis-dialog, .analysis-dialog::backdrop, .debate-loader-art * { animation: none !important; transition: none !important; }
+}
