@@ -2,6 +2,16 @@ import { readFileSync } from "node:fs"
 import path from "node:path"
 import { parseEnv } from "node:util"
 
+export function localSourceReviewsEnabled(root: string) {
+  if (process.env.VERCEL) return false
+  let local: Record<string, string | undefined> = {}
+  try { local = parseEnv(readFileSync(path.join(root, ".local.env"), "utf8")) }
+  catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw new Error("Cannot read local source queue configuration") }
+  const value = process.env.LOCAL_SOURCE_REVIEW_ENABLED?.trim() || local.LOCAL_SOURCE_REVIEW_ENABLED?.trim() || "false"
+  if (value !== "true" && value !== "false") throw new Error("LOCAL_SOURCE_REVIEW_ENABLED must be true or false")
+  return value === "true"
+}
+
 // Read only on the server. Never merge this file into Vite's client environment.
 export function tokenomistKey(root: string): string {
   const inherited = process.env.TOKENOMIST_API_KEY?.trim()
@@ -38,6 +48,23 @@ export function agentsConfig(root: string) {
   const model = value("ELEVENLABS_AGENTS_MODEL") || "gemini-2.5-flash"
   const bullAgentId = value("ELEVENLABS_BULL_AGENT_ID")
   const bearAgentId = value("ELEVENLABS_BEAR_AGENT_ID")
-  if (!/^gemini-[a-zA-Z0-9.-]{1,80}$/.test(model) || [bullAgentId,bearAgentId].some(id=>id&&!/^agent_[a-zA-Z0-9]{1,100}$/.test(id))) throw new Error("Invalid ElevenLabs Agents configuration")
-  return {apiKey:value("ELEVENLABS_AGENTS_API_KEY"),model,bullAgentId,bearAgentId}
+  const impactAgentId = value("ELEVENLABS_IMPACT_AGENT_ID")
+  const researchAgentId = value("ELEVENLABS_RESEARCH_AGENT_ID")
+  if (!/^gemini-[a-zA-Z0-9.-]{1,80}$/.test(model) || [bullAgentId,bearAgentId,impactAgentId,researchAgentId].some(id=>id&&!/^agent_[a-zA-Z0-9]{1,100}$/.test(id))) throw new Error("Invalid ElevenLabs Agents configuration")
+  const integer = (name: string, fallback: number, maximum: number, minimum = 1) => {
+    const raw = value(name)
+    if (!raw) return fallback
+    const parsed = Number(raw)
+    if (!/^\d+$/.test(raw) || !Number.isInteger(parsed) || parsed < minimum || parsed > maximum) throw new Error(`Invalid ${name}: choose an integer from ${minimum} to ${maximum}`)
+    return parsed
+  }
+  return {apiKey:value("ELEVENLABS_AGENTS_API_KEY"),model,bullAgentId,bearAgentId,
+    ...(impactAgentId ? { impactAgentId } : {}),
+    ...(researchAgentId ? { researchAgentId } : {}),
+    impactReviewConcurrency: integer("IMPACT_REVIEW_CONCURRENCY", 3, 3),
+    impactReviewBatchSize: integer("IMPACT_REVIEW_BATCH_SIZE", 4, 8),
+    impactThinkingBudget: integer("IMPACT_ANALYSIS_THINKING_BUDGET", 1024, 8192, 128),
+    referenceCheckConcurrency: integer("REFERENCE_CHECK_CONCURRENCY", 6, 12),
+    referenceCheckTimeoutMs: integer("REFERENCE_CHECK_TIMEOUT_MS", 6000, 10_000, 1000),
+  }
 }

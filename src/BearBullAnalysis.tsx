@@ -10,6 +10,7 @@ import type {
   DebateSource,
 } from "./bear-bull-types"
 import { readDebateStream } from "./debate-stream"
+import { debatePositions as positions, downloadDebateReport } from "./debate-report"
 import AgentAvatar from "./AgentAvatar"
 import DebateAudio from "./DebateAudio"
 import "./bear-bull.css"
@@ -21,11 +22,6 @@ const phaseNames = {
   research: "Review evidence",
   debate: "Cross-examine",
   complete: "Complete",
-}
-const positions = {
-  challenge: "Challenged",
-  concede: "Conceded",
-  uncertain: "Insufficient evidence",
 }
 type AgentState = {
   task: "research" | "debate"
@@ -112,11 +108,13 @@ function dateTime(value: string) {
 export default function BearBullAnalysis({ coin }: { coin: MarketCoin }) {
   const [state, setState] = useState<ViewState>(initial)
   const [attempt, setAttempt] = useState(0)
+  const [downloadError, setDownloadError] = useState("")
   const active = useRef<AbortController | null>(null)
   useEffect(() => {
     const controller = new AbortController()
     active.current = controller
     setState(initial())
+    setDownloadError("")
     async function run() {
       try {
         const configResponse = await fetch("/api/analysis/config", {
@@ -366,11 +364,18 @@ export default function BearBullAnalysis({ coin }: { coin: MarketCoin }) {
                 All arguments <span>{disputes.length}</span>
               </h2>
             </div>
-            <p>
+            <div className="debate-report-actions">
+              <p>
               {state.cached ? "Cached report · " : "Analyzed "}
               {dateTime(result.createdAt)} ICT
-            </p>
+              </p>
+              <button className="debate-download" onClick={() => {
+                try { downloadDebateReport(result); setDownloadError("") }
+                catch { setDownloadError("Could not download the report. Please try again.") }
+              }} title="Download the full report with sources as an HTML file"><span aria-hidden="true">↓</span> Download report</button>
+            </div>
           </div>
+          {downloadError && <p className="debate-download-error" role="alert">{downloadError}</p>}
           <div className="debate-totals">
             {Object.entries(positions).map(([key, label]) => (
               <span key={key} className={key}>
@@ -398,7 +403,7 @@ export default function BearBullAnalysis({ coin }: { coin: MarketCoin }) {
                   <b className={reply.position}>{positions[reply.position]}</b>
                 </header>
                 <div className="dispute-columns">
-                  <div className={side}>
+                  <div className={side} aria-label={`${side.toUpperCase()} claim`}>
                     <span className="dispute-side">
                       {side.toUpperCase()} · Claim
                     </span>
@@ -406,7 +411,7 @@ export default function BearBullAnalysis({ coin }: { coin: MarketCoin }) {
                     <Citations sources={claim.sources} />
                     <small>{claim.caveat}</small>
                   </div>
-                  <div className={opponent}>
+                  <div className={opponent} aria-label={`${opponent.toUpperCase()} response`}>
                     <span className="dispute-side">
                       {opponent.toUpperCase()} · Response
                     </span>
@@ -419,7 +424,7 @@ export default function BearBullAnalysis({ coin }: { coin: MarketCoin }) {
           </div>
           <div className="debate-gaps">
             {sides.map((side) => (
-              <div key={side}>
+              <div key={side} className={side}>
                 <h3>{side.toUpperCase()} · Evidence gaps</h3>
                 {result.openings[side].gaps.length ? (
                   result.openings[side].gaps.map((gap, index) => (

@@ -1,4 +1,5 @@
 import type { ImpactEvidence, ImpactTone } from "./coin-impact"
+import type { NewsVerification } from "./news-review-types"
 
 export type ImpactLabel = ImpactTone | "neutral"
 export type ImpactClassification = {
@@ -9,6 +10,7 @@ export type ImpactClassification = {
   quote: string
   basis: "headline" | "excerpt" | "structured"
   classifiedAt: string
+  verification?: NewsVerification
 }
 export type ImpactReview = {
   coinId: string
@@ -16,6 +18,7 @@ export type ImpactReview = {
   labels: ImpactClassification[]
   newlyReviewed: number
   pending?: number
+  running?: boolean
 }
 export const impactInput = (coinId: string, row: ImpactEvidence) =>
   JSON.stringify([coinId, row.id, row.url, row.title, row.at, row.scope, row.scope === "tokenomics" ? row.reason : ""])
@@ -30,9 +33,10 @@ export function reviewedEvidence(coinId: string, rows: ImpactEvidence[], review:
     const label = fresh && review?.coinId === coinId
       ? review.labels.find((item) => item.id === row.id && item.input === impactInput(coinId, row)) : undefined
     if (!label) { pending.push(row); continue }
-    const item = { ...row, tone: label.label === "neutral" ? "unknown" as const : label.label,
+    const unsupported = label.verification?.status === "unverified"
+    const item = { ...row, tone: unsupported || label.label === "neutral" ? "unknown" as const : label.label,
       reason: label.reason, agent: label }
-    if (label.label === "neutral") context.push(item)
+    if (label.label === "neutral" && !unsupported) context.push(item)
     else { evidence.push(item); counts[item.tone]++ }
   }
   return { evidence, context, pending, counts }

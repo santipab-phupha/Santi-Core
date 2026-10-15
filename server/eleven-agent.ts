@@ -3,14 +3,23 @@ export type AgentsConfig = {
   model: string
   bullAgentId: string
   bearAgentId: string
+  impactReviewConcurrency?: number
+  impactReviewBatchSize?: number
+  impactAgentId?: string
+  researchAgentId?: string
+  impactThinkingBudget?: number
+  referenceCheckConcurrency?: number
+  referenceCheckTimeoutMs?: number
 }
 export type AgentTask = {
   config: AgentsConfig
   agentId: string
   prompt: string
-  kind: "submit_opening" | "submit_rebuttal" | "submit_classification"
+  kind: "submit_opening" | "submit_rebuttal" | "submit_classification" | "submit_answer"
   signal: AbortSignal
   readSource: (url: unknown) => Promise<unknown>
+  searchNews?: (query: unknown) => Promise<unknown>
+  thinkingBudget?: number
 }
 export class AgentError extends Error {
   code: string
@@ -41,6 +50,7 @@ export function createAgentRunner({ fetcher = fetch, socketFactory = (url: strin
     const agent = await request(config, `agents/${encodeURIComponent(agentId)}`, signal)
     const settings = agent.conversation_config
     if (!/^gemini-[a-zA-Z0-9.-]+$/.test(config.model) || settings?.agent?.prompt?.llm !== config.model ||
+      (task.thinkingBudget !== undefined && settings?.agent?.prompt?.thinking_budget !== task.thinkingBudget) ||
       settings?.agent?.prompt?.backup_llm_config?.preference !== "disabled" ||
       settings?.conversation?.text_only !== true || settings?.agent?.language !== "en" || settings?.agent?.first_message) {
       throw new AgentError("unsafe_agent_config", "The agent must use the configured Gemini model, English, text-only mode and disabled backup models before analysis.")
@@ -56,6 +66,7 @@ export function createAgentRunner({ fetcher = fetch, socketFactory = (url: strin
       let started = false
       let reading = false
       let reads = 0
+      let searches = 0
       let size = 0
       const calls = new Set<string>()
       function finish(error?: unknown, value?: unknown) {
@@ -91,10 +102,16 @@ export function createAgentRunner({ fetcher = fetch, socketFactory = (url: strin
             if (reading) throw new AgentError("incomplete_output", "The agent submitted its report before finishing the evidence read.")
             send({ type: "client_tool_result", tool_call_id: call.tool_call_id, result: "Report received. Task complete.", is_error: false })
             finish(undefined, call.parameters)
-          } else if (call.tool_name === "read_source" && kind === "submit_opening") {
+          } else if (call.tool_name === "read_source" && (kind === "submit_opening" || kind === "submit_answer")) {
             if (reading || ++reads > 3) throw new AgentError("tool_limit", "Read one source at a time, up to three sources per side.")
             reading = true
             const result = await readSource(call.parameters?.url)
+            reading = false
+            send({ type: "client_tool_result", tool_call_id: call.tool_call_id, result: JSON.stringify(result), is_error: false })
+          } else if (call.tool_name === "search_news" && kind === "submit_answer" && task.searchNews) {
+            if (reading || ++searches > 2) throw new AgentError("tool_limit", "Search the loaded news at most twice per question.")
+            reading = true
+            const result = await task.searchNews(call.parameters?.query)
             reading = false
             send({ type: "client_tool_result", tool_call_id: call.tool_call_id, result: JSON.stringify(result), is_error: false })
           } else throw new AgentError("unexpected_tool", "The agent called a tool outside this stage. Analysis stopped.")

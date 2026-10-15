@@ -22,6 +22,10 @@ test("impact endpoint rejects foreign origins, arbitrary evidence, unknown asset
     assert.equal((await post({ coinId: "bitcoin", evidence: "invented news" })).status, 400)
     assert.equal((await post({ coinId: "unknown" })).status, 400)
     assert.equal((await post({ coinId: "x".repeat(2000) })).status, 413)
+    const statuses = await fetch(url.replace("/review", "/news"))
+    assert.equal(statuses.status, 200)
+    assert.deepEqual(await statuses.json(), { items: [] })
+    assert.equal((await fetch(url.replace("/review", "/news"), { method: "POST" })).status, 405)
     assert.equal(calls, 0)
   } finally { server.closeAllConnections(); await new Promise<void>((resolve) => server.close(() => resolve())) }
 })

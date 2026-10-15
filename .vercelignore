@@ -1,8 +1,17 @@
 .local.env
+.local.env.*
+!.local.env.example
 .env*
 node_modules/
 dist/
 .dist/
+build/
+.cache/
+.vite/
+.vercel/
 .git/
 .figma/design-context/
 *.log
+*.tsbuildinfo
+.tmp-*
+.claude-replay.*

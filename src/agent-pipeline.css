@@ -1,0 +1,61 @@
+.market-topbar { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 20px; }
+.market-topbar > .market-view-switch { flex-shrink: 0; margin: 0 0 0 auto; }
+.agent-pipeline { --orb-size: 108px; --node-width: 120px; --pipeline-gap: 28px; display: flex; align-items: flex-start; gap: var(--pipeline-gap); min-width: 0; margin: 0; padding: 0; list-style: none; }
+.pipeline-node { --node-color: #8fb4f4; position: relative; display: flex; flex: 0 0 var(--node-width); flex-direction: column; align-items: center; width: var(--node-width); padding: 0; color: var(--node-color); outline: none; }
+.pipeline-sources { --node-color: #6ed8b0; }
+.pipeline-impact { --node-color: #c398fa; }
+.pipeline-node::after { content: ""; position: absolute; top: calc(var(--orb-size) / 2); left: calc(50% + var(--orb-size) / 2 + 3px); width: calc(var(--node-width) + var(--pipeline-gap) - var(--orb-size) - 6px); height: 2px; border-radius: 2px; background: linear-gradient(90deg, color-mix(in srgb, var(--node-color) 45%, transparent), #a97cce55); }
+.pipeline-node::before { content: ""; position: absolute; top: calc(var(--orb-size) / 2 - 1px); left: calc((var(--node-width) * 2 + var(--pipeline-gap)) / 2 - 2px); width: 4px; height: 4px; border-radius: 1px; background: #a88bc2; transform: rotate(45deg); box-shadow: 0 0 0 3px var(--canvas); z-index: 1; }
+.pipeline-node:last-child::after, .pipeline-node:last-child::before { display: none; }
+.pipeline-node.is-running::after { height: 2px; background: linear-gradient(90deg, transparent, var(--node-color), transparent); background-size: 200% 100%; animation: pipeline-flow 1.8s linear infinite; }
+.pipeline-orb { position: relative; display: grid; place-items: center; width: var(--orb-size); height: var(--orb-size); }
+.pipeline-orb::before { content: ""; position: absolute; inset: 4px; border-radius: 50%; background: radial-gradient(circle at 40% 25%, color-mix(in srgb, var(--node-color) 10%, #17121e), #110e18 85%); box-shadow: 0 5px 20px #0003; }
+.pipeline-ring { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; overflow: visible; }
+.pipeline-ring circle { stroke-width: 1.5; }
+.pipeline-ring-track { stroke: #51425f; }
+.pipeline-ring-progress { stroke: #fff; stroke-linecap: round; opacity: .95; transition: stroke-dashoffset .7s linear; }
+.pipeline-ring .pipeline-segment { stroke: color-mix(in srgb, var(--node-color) 57%, #30243d); stroke-width: 4.5; stroke-linecap: round; transition: stroke .3s, filter .3s; }
+.pipeline-ring .pipeline-segment.is-lit { stroke: #fff; filter: drop-shadow(0 0 2px #ffffff55); }
+.pipeline-ring-running { stroke: #fff; stroke-width: 4 !important; stroke-linecap: round; transform-origin: 44px 44px; animation: pipeline-orbit 1.7s linear infinite; filter: drop-shadow(0 0 4px #ffffff99); }
+.pipeline-face { position: relative; z-index: 2; display: grid; place-items: center; width: 64px; height: 64px; border: 1px solid color-mix(in srgb, var(--node-color) 25%, transparent); border-radius: 50%; background: radial-gradient(circle at 35% 20%, color-mix(in srgb, var(--node-color) 16%, transparent), transparent 80%), #18131f; box-shadow: inset 0 1px 8px #ffffff04; transition: box-shadow .3s; }
+.pipeline-avatar { width: 54px; height: 54px; }
+.pipeline-node.is-running .pipeline-face { box-shadow: 0 0 24px color-mix(in srgb, var(--node-color) 22%, transparent), inset 0 0 14px color-mix(in srgb, var(--node-color) 12%, transparent); }
+.pipeline-state-dot { position: absolute; z-index: 3; right: 24px; bottom: 23px; width: 9px; height: 9px; border: 2px solid #15111e; border-radius: 50%; background: var(--node-color); }
+.pipeline-node.is-running .pipeline-state-dot { animation: pipeline-dot 1.1s ease-in-out infinite alternate; }
+.pipeline-name { margin-top: 9px; color: #ddd2e9; font-size: 13px; font-weight: 500; line-height: 1.5; white-space: nowrap; }
+.pipeline-state-label { margin-top: 3px; color: #b9a9c9; font: 11px/1.5 var(--numbers); white-space: nowrap; }
+.pipeline-node.is-running .pipeline-state-label { color: var(--node-color); }
+.pipeline-node:is(.is-error, .is-paused) { --node-color: #ddb274; }
+.pipeline-node:is(.is-error, .is-paused) .pipeline-state-label { color: var(--node-color); }
+.pipeline-node:focus-visible .pipeline-face { outline: 2px solid var(--purple); outline-offset: 6px; }
+.pipeline-tooltip { position: absolute; top: calc(100% + 10px); left: 0; z-index: 15; width: 230px; padding: 12px 14px; border: 1px solid #624977; border-radius: 11px; background: #211a2df7; color: var(--secondary); box-shadow: 0 10px 35px #0005; font-size: 11px; line-height: 1.7; text-align: left; visibility: hidden; opacity: 0; pointer-events: none; transform: translateY(-4px); transition: opacity .15s, transform .15s; }
+.pipeline-node:hover .pipeline-tooltip, .pipeline-node:focus .pipeline-tooltip { visibility: visible; opacity: 1; transform: translateY(0); }
+.pipeline-node:last-child .pipeline-tooltip { left: auto; right: 0; }
+@keyframes pipeline-orbit { to { transform: rotate(360deg); } }
+@keyframes pipeline-flow { to { background-position: -200% 0; } }
+@keyframes pipeline-dot { from { opacity: .45; } to { opacity: 1; } }
+@media (max-width: 760px) {
+  .market-topbar { flex-wrap: wrap; gap: 18px; }
+  .agent-pipeline { --orb-size: 96px; --node-width: 108px; --pipeline-gap: 22px; }
+  .pipeline-face { width: 58px; height: 58px; }
+  .pipeline-avatar { width: 48px; height: 48px; }
+  .pipeline-state-dot { right: 21px; bottom: 19px; }
+}
+@media (max-width: 480px) {
+  .agent-pipeline { --orb-size: 88px; --node-width: 96px; --pipeline-gap: 16px; }
+  .pipeline-name { font-size: 11px; }
+  .pipeline-state-label { font-size: 10px; }
+  .pipeline-face { width: 52px; height: 52px; }
+  .pipeline-avatar { width: 44px; height: 44px; }
+  .pipeline-state-dot { right: 19px; bottom: 17px; }
+  .pipeline-tooltip { width: 210px; }
+  .pipeline-node:nth-child(2) .pipeline-tooltip { left: 50%; transform: translateX(-50%); }
+}
+@media (max-width: 360px) {
+  .agent-pipeline { --orb-size: 76px; --node-width: 84px; --pipeline-gap: 12px; }
+  .pipeline-face { width: 46px; height: 46px; }
+  .pipeline-avatar { width: 38px; height: 38px; }
+  .pipeline-state-label { font-size: 9px; }
+  .pipeline-state-dot { right: 16px; bottom: 14px; }
+}
+@media (prefers-reduced-motion: reduce) { .agent-pipeline *, .pipeline-node::after { animation: none !important; transition: none !important; } }

@@ -1,0 +1,45 @@
+:root .workspace { position: relative; isolation: isolate; }
+.finance-backdrop { position: fixed; z-index: -1; inset: 0; overflow: hidden; pointer-events: none; user-select: none; contain: strict; background: linear-gradient(160deg, #120e1c66, transparent 45%, #10191b33); }
+.finance-glow { position: absolute; width: 850px; height: 850px; border-radius: 50%; opacity: .65; }
+.finance-glow-purple { top: -390px; right: -220px; background: radial-gradient(circle, #7937ba30, #50287812 42%, transparent 69%); animation: finance-glow-drift 32s ease-in-out infinite alternate; }
+.finance-glow-teal { bottom: -500px; left: -330px; background: radial-gradient(circle, #378e8220, #3f397b0c 42%, transparent 68%); animation: finance-glow-drift 38s ease-in-out -14s infinite alternate-reverse; }
+.finance-grid { position: absolute; inset: -80px; opacity: .2; background-image: linear-gradient(#a283c30b 1px, transparent 1px), linear-gradient(90deg, #a283c30b 1px, transparent 1px); background-size: 80px 80px; mask-image: radial-gradient(ellipse at 50% 50%, transparent 15%, #000 90%); transform: rotate(-8deg) scale(1.15); }
+.finance-market-lines { position: absolute; width: 100%; height: 100%; opacity: .34; }
+.finance-trend-layer { animation: finance-trend-drift 40s ease-in-out infinite alternate; }
+.finance-candles { opacity: .48; }
+.finance-candles-left { animation: finance-candle-left 29s ease-in-out -9s infinite alternate; }
+.finance-candles-right { animation: finance-candle-right 35s ease-in-out -15s infinite alternate; }
+.finance-signal-ring { transform-box: fill-box; transform-origin: center; animation: finance-signal 7s ease-out infinite; }
+.finance-fragment { position: absolute; width: 126px; color: #ae8ad9; opacity: .16; font-family: var(--numbers); animation: finance-fragment-drift 24s ease-in-out infinite alternate; }
+.finance-fragment span { display: block; margin-bottom: 9px; font-size: 9px; letter-spacing: 2px; }
+.finance-fragment svg { display: block; width: 100%; height: 35px; }
+.finance-fragment-btc { top: 11%; left: 2%; transform: rotate(-9deg); }
+.finance-fragment-eth { top: 43%; right: 1%; animation-delay: -12s; }
+.finance-fragment-liquidity { top: 69%; left: 1.2%; color: #77b6a9; animation-duration: 31s; animation-delay: -8s; }
+.finance-fragment-volume { bottom: 8%; right: 3%; animation-duration: 28s; animation-delay: -18s; }
+.finance-symbol { position: absolute; font-family: var(--numbers); font-size: 100px; font-weight: 400; line-height: 1; color: #a27ac7; opacity: .045; animation: finance-symbol-drift 34s ease-in-out infinite alternate; }
+.finance-symbol-bitcoin { top: 26%; left: -18px; transform: rotate(-18deg); }
+.finance-symbol-ethereum { bottom: 14%; right: -8px; font-size: 140px; animation-delay: -16s; }
+.finance-grain { position: absolute; inset: 0; opacity: .15; background-image: radial-gradient(#bca1d630 .6px, transparent .6px); background-size: 7px 7px; mask-image: linear-gradient(90deg, #000, transparent 30%, transparent 70%, #000); }
+.finance-backdrop.is-paused *, .finance-backdrop.is-paused { animation-play-state: paused !important; }
+.finance-motion-toggle { position: fixed; left: 12px; bottom: 12px; z-index: 35; display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 7px 10px; border: 1px solid #58416b66; border-radius: 9px; background: #15101fd9; color: #a893b9; font-size: 10px; backdrop-filter: blur(8px); transition: color .2s, border-color .2s; }
+.finance-motion-toggle > span:first-child { font-size: 13px; line-height: 1; }
+.finance-motion-toggle:hover { color: var(--purple-deep); border-color: #8764a5; }
+@keyframes finance-glow-drift { from { transform: translate3d(0, 0, 0) scale(1); } to { transform: translate3d(-90px, 70px, 0) scale(1.12); } }
+@keyframes finance-trend-drift { from { transform: translate3d(-15px, 15px, 0); } to { transform: translate3d(24px, -34px, 0); } }
+@keyframes finance-candle-left { from { transform: translate(-50px, 180px); } to { transform: translate(-30px, 145px); } }
+@keyframes finance-candle-right { from { transform: translate(1190px, 600px) scale(.8); } to { transform: translate(1170px, 630px) scale(.8); } }
+@keyframes finance-fragment-drift { from { translate: 0 0; } to { translate: 14px -26px; } }
+@keyframes finance-symbol-drift { from { translate: 0 0; rotate: -3deg; } to { translate: 8px -36px; rotate: 5deg; } }
+@keyframes finance-signal { 0% { transform: scale(.65); opacity: .6; } 75%,100% { transform: scale(2.4); opacity: 0; } }
+@media (max-width: 640px) {
+  .finance-market-lines { opacity: .24; }
+  .finance-fragment { width: 90px; opacity: .12; }
+  .finance-fragment-eth, .finance-fragment-volume, .finance-symbol-ethereum, .finance-glow-teal { display: none; }
+  .finance-motion-toggle { left: 8px; bottom: 8px; min-width: 34px; padding: 7px 9px; }
+  .finance-motion-toggle > span:last-child { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .finance-backdrop *, .finance-backdrop { animation: none !important; }
+  .finance-motion-toggle { display: none; }
+}

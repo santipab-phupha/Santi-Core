@@ -57,6 +57,34 @@ test("model changes, model cascading and audio mode are rejected before paid ses
     assert.equal(sockets,0)
   }
 })
+
+test("Research sessions search the feed, read sources and accept only the final answer tool",async()=>{
+  let searches=0,reads=0
+  const runner=createAgentRunner({fetcher:provider(),socketFactory:()=>{
+    const socket=new MockSocket()
+    socket.onSend=value=>{
+      if(value.type==="conversation_initiation_client_data")socket.message({type:"conversation_initiation_metadata"})
+      if(value.type==="user_message")socket.message({type:"client_tool_call",client_tool_call:{tool_name:"search_news",tool_call_id:"search",parameters:{query:"Bitcoin"}}})
+      if(value.type==="client_tool_result"&&value.tool_call_id==="search")socket.message({type:"client_tool_call",client_tool_call:{tool_name:"read_source",tool_call_id:"read",parameters:{url:"https://www.coindesk.com/story"}}})
+      if(value.type==="client_tool_result"&&value.tool_call_id==="read")socket.message({type:"client_tool_call",client_tool_call:{tool_name:"submit_answer",tool_call_id:"answer",parameters:{summary:"Source-grounded answer",sections:[],gaps:[]}}})
+    }
+    return socket as unknown as WebSocket
+  }})
+  const result=await runner(task({kind:"submit_answer",searchNews:async query=>{searches++;assert.equal(query,"Bitcoin");return {evidence:[]}},readSource:async()=>{reads++;return {available:true,text:"Article"}}}))
+  assert.deepEqual(result,{summary:"Source-grounded answer",sections:[],gaps:[]})
+  assert.equal(searches,1);assert.equal(reads,1)
+})
+
+test("impact reasoning budget must match hosted configuration before a paid conversation", async () => {
+  for (const budget of [undefined, 512, 2048]) {
+    const d = structuredClone(definition) as any
+    d.conversation_config.agent.prompt.thinking_budget = budget
+    let sockets = 0
+    const run = createAgentRunner({ fetcher: provider(d), socketFactory: () => { sockets++; throw new Error("Must not start") } })
+    await assert.rejects(run(task({ thinkingBudget: 1024 })), { code: "unsafe_agent_config" })
+    assert.equal(sockets, 0)
+  }
+})
 test("untrusted signed destinations, provider bodies, and retries cannot leak secrets",async()=>{
   let calls=0
   const run=createAgentRunner({fetcher:async()=>{calls++;return new Response("private-provider-secret",{status:403})}})

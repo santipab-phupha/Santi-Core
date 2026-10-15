@@ -1,12 +1,17 @@
 import type { Plugin, Connect } from "vite"
 import type { IncomingMessage, ServerResponse } from "node:http"
+import { join } from "node:path"
 import { XMLParser } from "fast-xml-parser"
-import { elevenlabsConfig, agentsConfig, tokenomistKey } from "./local-env.ts"
+import { elevenlabsConfig, agentsConfig, tokenomistKey, localSourceReviewsEnabled } from "./local-env.ts"
 import { createAudioApi } from "./audio-api.ts"
 import { createBearBullApi } from "./bear-bull-api.ts"
 import { AnalysisError, buildDebateContext } from "./bear-bull-engine.ts"
 import { tokenomistClient } from "./tokenomist.ts"
 import { createImpactApi } from "./impact-api.ts"
+import { createResearchApi } from "./research-api.ts"
+import { createReviewStore } from "./impact-review.ts"
+import { createSourceReviewService } from "./source-review-service.ts"
+import { buildImpactAudio } from "./impact-report-audio.ts"
 import type {
   FeedItem,
   FeedResponse,
@@ -21,7 +26,7 @@ const sources = [
   { name: "Tokenomist Research", url: "https://insights.unlocks.app/rss/" },
 ]
 const marketUrl =
-  "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=10&page=1&sparkline=false"
+  "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=50&page=1&sparkline=false"
 const parser = new XMLParser({
   ignoreAttributes: false,
   processEntities: false,
@@ -112,6 +117,7 @@ export function parseFeed(xml: string, source: string): FeedItem[] {
           publishedAt: date.toISOString(),
           kind,
           topics: categories.slice(0, 3),
+          summary: plainText(plainText(item.description ?? item["content:encoded"])).slice(0, 3000),
         } satisfies FeedItem,
       ]
     })
@@ -170,7 +176,7 @@ async function loadMarket(): Promise<MarketResponse> {
       ]
     })
     .sort((a, b) => b.marketCap - a.marketCap)
-    .slice(0, 10)
+    .slice(0, 50)
   if (!coins.length) throw new Error("No market data")
   return {
     coins,
@@ -247,22 +253,39 @@ export function createWorkspaceHandler(root = process.cwd()) {
     return current.pending
   }
   const audioApi = createAudioApi({ getConfig: () => elevenlabsConfig(root) })
+  const reviewStore = createReviewStore(join(root, ".cache", "impact-reviews.json"))
+  const sources = createSourceReviewService({ getConfig: () => agentsConfig(root), store: reviewStore,
+    getFeed: async () => await getData("/api/feed") as FeedResponse,
+  })
+  const researchApi = createResearchApi({ getConfig: () => agentsConfig(root),
+    getData: async signal => {
+      const [market, feed] = await Promise.all([getData("/api/market"), getData("/api/feed")]) as [MarketResponse, FeedResponse]
+      return [market, await sources.verifiedFeed(feed, signal)]
+    },
+  })
   const impactApi = createImpactApi({ getConfig: () => agentsConfig(root),
+    cacheFile: join(root, ".cache", "impact-reviews.json"),
+    store: reviewStore, checkSource: sources.check, sourceQueueStatus: sources.status,
+    narrate: report => {
+      const manifest = buildImpactAudio(report)
+      return { manifest, audioToken: audioApi.registerManifest(manifest) }
+    },
     getData: async () => await Promise.all([getData("/api/market"), getData("/api/feed")]) as [MarketResponse, FeedResponse],
   })
   const analysisApi = createBearBullApi({
     getConfig: () => agentsConfig(root),
     onResult: audioApi.register,
-    async getContext(coinId) {
+    async getContext(coinId, signal) {
       const [market, feed] = await Promise.all([getData("/api/market"), getData("/api/feed")]) as [MarketResponse, FeedResponse]
       const coin = market.coins.find((item) => item.id === coinId)
       if (!coin) throw new AnalysisError("unknown_coin", "This asset was not found in the loaded market list. Refresh and select it again.", 400)
-      return buildDebateContext(coin, market, feed)
+      return buildDebateContext(coin, market, await sources.verifiedFeed(feed, signal))
     },
   })
-  return async function handle(req: IncomingMessage, res: ServerResponse, next: () => void = () => { res.statusCode = 404; res.end("Not found") }) {
+  async function handle(req: IncomingMessage, res: ServerResponse, next: () => void = () => { res.statusCode = 404; res.end("Not found") }) {
     const route = req.url?.split("?")[0] ?? ""
-    if (route === "/api/impact/review") { await impactApi(req, res); return }
+    if (route === "/api/research" || route === "/api/research/config") { await researchApi(req, res); return }
+    if (route === "/api/impact/review" || route === "/api/impact/news" || route === "/api/impact/report") { await impactApi(req, res); return }
     if (route.startsWith("/api/audio/")) { await audioApi.handle(req, res); return }
     if (route === "/api/analysis" || route === "/api/analysis/config") {
       await analysisApi(req, res)
@@ -311,6 +334,10 @@ export function createWorkspaceHandler(root = process.cwd()) {
         )
       })
   }
+  return Object.assign(handle, {
+    startLocalSourceReviews() { if (localSourceReviewsEnabled(root)) sources.start() },
+    stopSourceReviews: sources.stop,
+  })
 }
 export function workspaceApi(): Plugin {
   let handler = createWorkspaceHandler()
@@ -324,6 +351,8 @@ export function workspaceApi(): Plugin {
     },
     configureServer(server) {
       server.middlewares.use(middleware)
+      handler.startLocalSourceReviews()
+      server.httpServer?.once("close", () => { void handler.stopSourceReviews() })
     },
     configurePreviewServer(server) {
       server.middlewares.use(middleware)

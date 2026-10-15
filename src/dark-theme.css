@@ -1,0 +1,205 @@
+/* Dark by default, including native controls and portalled analysis dialogs. */
+:root {
+  color-scheme: dark;
+  color: #e5dfed;
+  background: #0e0c14;
+  --canvas: #0e0c14;
+  --surface: #16131f;
+  --surface-raised: #1d1829;
+  --surface-hover: #251d34;
+  --text: #e5dfed;
+  --secondary: #c2b8ce;
+  --muted: #aaa0ba;
+  --purple: #b89ae9;
+  --purple-deep: #cbb2f2;
+  --line: #30283e;
+  --gradient: linear-gradient(135deg, #7846bd, #60369e);
+  --positive: #62c7a2;
+  --negative: #ee90a5;
+  scrollbar-color: #493958 var(--canvas);
+}
+:root body { background: var(--canvas); }
+:root ::selection { color: #eee5fa; background: #513773; }
+:root .workspace { background: radial-gradient(ellipse 1000px 560px at 85% 0, #47235f26, transparent 80%), var(--canvas); }
+:root .site-header { background: #100d17eb; border-color: var(--line); }
+:root .site-footer { background: #100d17; border-color: var(--line); }
+:root .skip-link { background: var(--surface-raised); color: var(--text); }
+:root :is(.header-search, .research-composer > div) { background: var(--surface); border-color: var(--line); }
+:root :is(input, textarea, select) { color: var(--text); }
+:root :is(input, textarea)::placeholder { color: #a298b2; }
+:root .header-search:focus-within { border-color: #8060a7; box-shadow: 0 0 0 3px #a77ada12; }
+:root .brand img { filter: drop-shadow(0 3px 7px #9c6cdb20); }
+:root .research-launcher { border-color: #9161c3; box-shadow: 0 5px 18px #0003, inset 0 1px 0 #ffffff12; }
+:root .research-launcher:hover { background: linear-gradient(135deg, #8653c7, #6d40ad); }
+:root .research-launcher.is-open { background: #2a1e3c; border-color: #60447f; color: var(--purple-deep); }
+
+/* Quiet surfaces and a restrained purple glow on the selected asset. */
+:root :is(.coin-card, .market-detail, .market-table-wrap, .news-card, .empty-state) {
+  background: var(--surface);
+  border-color: var(--line);
+  box-shadow: 0 6px 24px #00000014;
+}
+:root .coin-card { border-width: 3px; border-color: #57436e; }
+:root .coin-card.is-selected {
+  background: radial-gradient(ellipse at 100% 0, #71419b28, transparent 85%), linear-gradient(135deg, #21192e, #1a1525);
+  border-color: #b58ae9;
+  box-shadow: 0 0 0 2px #b58ae9, 0 0 20px #a276cf24, 0 8px 28px #0002;
+}
+:root .coin-card::after { background: radial-gradient(220px circle at var(--spot-x, 50%) var(--spot-y, 0%), #a06fd625, transparent 76%); }
+:root :is(.coin-bottom, td, .news-bottom, .feed-toolbar, .chart-head, .chart-toolbar) { border-color: var(--line); }
+:root :is(.coin-fallback, .coin-research, .icon-button, .refresh-button, .load-more, .news-asset-fallback) {
+  background: var(--surface-raised); border-color: var(--line); color: var(--purple);
+}
+:root :is(.coin-research, .icon-button, .refresh-button, .load-more):hover { background: var(--surface-hover); color: var(--purple-deep); border-color: #71518e; }
+:root :is(th, .chart-widget, .chart-widget .tradingview-widget-copyright) { background: var(--surface); }
+:root th { color: var(--muted); }
+:root .chart-toolbar button { color: var(--secondary); }
+:root .chart-toolbar button:hover { color: var(--purple-deep); background: var(--surface-hover); }
+:root .chart-toolbar button.active { color: #f3eafa; background: var(--gradient); }
+:root .chart-asset p { color: var(--secondary); }
+:root .chart-asset p span { color: var(--muted); }
+@media (hover: hover) and (pointer: fine) {
+  :root .coin-card:hover { border-color: #71518e; box-shadow: 0 18px 38px #0004, 0 3px 14px #6d3a9e12; }
+  :root .coin-card:hover .coin-price { color: var(--purple-deep); }
+  :root .coin-card.is-selected:hover { border-color: #c9a4f4; box-shadow: 0 0 0 2px #c9a4f4, 0 0 24px #a276cf30, 0 18px 38px #0004; }
+}
+:root .change.up { color: var(--positive); }
+:root .change.down { color: var(--negative); }
+
+/* Text keeps its hierarchy without bright white panels or faint captions. */
+:root :is(.header-inner nav a, .header-search, .coin-top div > span, .rank,
+  .coin-change > span:last-child, .coin-bottom > span, .market-foot, .chart-asset h2 span,
+  .chart-toolbar > span, .table-rank, .table-asset small, .feed-sort, .feed-sort span,
+  .news-top time, .publisher, .auto-refresh, .supply-numbers > span, .feed-note,
+  .site-footer > span, .site-footer > div, .research-panel-head div > span,
+  .research-trace > div, .result-label > span, .research-coins small,
+  .research-coins > div > span, .research-coins time, .research-supply,
+  .research-sources small, .research-boundary, .research-composer small,
+  .news-preview-meta time, .news-preview-source, .news-asset-market, .news-preview-empty,
+  .impact-coverage, .impact-coverage time, .impact-evidence-meta,
+  .impact-evidence-row > small, .impact-gaps, .impact-empty) { color: var(--muted); }
+:root :is(.coin-bottom b, .supply-numbers b, .empty-state h3,
+  .news-preview-head h2, .news-preview-item h3, .impact-heading h3,
+  .impact-evidence-row > a, .impact-legend b) { color: var(--text); }
+:root :is(.assistant-welcome p, .empty-state p, .research-composer textarea,
+  .impact-evidence-row > p, .impact-method, .impact-review-status,
+  .impact-evidence blockquote, .impact-legend button) { color: var(--secondary); }
+:root :is(.eyebrow, .research-link, .text-button, .result-label,
+  .research-trace > div.complete, .research-trace > div.working,
+  .news-preview-head > a, .news-preview-more, .news-back, .news-asset-badge,
+  .impact-expand, .impact-method summary, .impact-evidence-row > a span,
+  .impact-coverage b, .impact-review-running) { color: var(--purple); }
+:root :is(.header-inner nav a, .news-card h3 a, .news-preview-item h3 a,
+  .news-preview-head > a, .news-preview-more, .research-link):hover { color: var(--purple-deep); }
+
+:root .news-preview { background: linear-gradient(150deg, #1a1524, var(--surface) 70%); border-color: var(--line); }
+:root :is(.news-preview-item, .news-preview-more, .workspace-content > .news-preview) { border-color: var(--line); }
+:root :is(.news-preview-item, .news-preview-more) { border-top: 2px solid #644e7c; }
+:root :is(.news-preview-list, .market-cards, .analysis-dialog) { scrollbar-color: #493958 transparent; }
+:root .news-card:hover { border-color: #71518e; box-shadow: 0 8px 24px #0003; }
+:root .news-card:has(.supply-numbers) { background: linear-gradient(130deg, var(--surface), #20172c); border-color: #493457; }
+:root :is(.kind-badge, .publisher-mark) { color: var(--secondary); background: #221c2d; border-color: #3a3047; }
+:root :is(.kind-badge.tokenomics, .publisher-mark.tokenomist, .publisher-mark.coingecko) { color: #c5a5eb; background: #2a1d3c; border-color: #4b345f; }
+:root .publisher-mark.coindesk { color: #d8bd74; background: #302a1d; }
+:root .publisher-mark.decrypt { color: #c0b7ce; background: #282231; }
+:root .feed-tabs button { color: var(--muted); }
+:root .feed-tabs button.active { color: var(--purple-deep); border-color: #503766; background: linear-gradient(110deg, #302040, #251b34); }
+:root .load-more > span { background: #30223f; }
+:root :is(.error-notice, .chart-error, .research-notice) { color: #d7b87d; background: #282218; border-color: #534329; }
+:root :is(.error-notice button, .source-note, .news-preview-notice) { color: #d7b87d; }
+:root .news-preview-notice button { color: var(--purple); }
+
+/* The overview bar retains semantic green/red, with softer neutral segments. */
+:root .coin-impact { border-color: var(--line); background: radial-gradient(ellipse at top right, #713d9c1c, transparent 65%), linear-gradient(120deg, #1b1526, var(--surface)); }
+:root .impact-analyze { color: #f3eafa; border-color: #9664c5; background: var(--gradient); box-shadow: 0 5px 20px #0002; }
+:root .impact-analyze:hover { box-shadow: 0 8px 24px #6e3a9a26; }
+:root .impact-meter { background: #2c2439; box-shadow: inset 0 2px 4px #0002; }
+:root .impact-segment.positive { background: linear-gradient(90deg, #389c7e, #2a876b); }
+:root .impact-segment.negative { background: linear-gradient(90deg, #c46581, #ab4c69); }
+:root .impact-segment.unknown { background: linear-gradient(90deg, #776584, #63516f); }
+:root .impact-legend i { background: #8f7b9d; }
+:root .impact-legend .positive i { background: var(--positive); }
+:root .impact-legend .negative i { background: var(--negative); }
+:root .impact-legend button[aria-pressed="true"] { color: var(--purple-deep); }
+:root .impact-detail { border-color: var(--line); }
+:root :is(.impact-coverage > span, .impact-evidence-row) { background: var(--surface); border-color: var(--line); }
+:root .impact-evidence-row.positive { border-left-color: #389c7e; }
+:root .impact-evidence-row.negative { border-left-color: #c46581; }
+:root .impact-evidence-row.positive .impact-evidence-meta > span { color: var(--positive); }
+:root .impact-evidence-row.negative .impact-evidence-meta > span { color: var(--negative); }
+:root .impact-review-status button { background: #302040; color: var(--purple-deep); }
+:root .impact-evidence blockquote { border-color: #71518e; }
+
+/* Research drawer, including its empty, loading and result states. */
+:root .research-panel { background: var(--surface); border-color: #4a355f; box-shadow: 0 22px 80px #0008, 0 4px 16px #0004; }
+:root .research-panel-head { background: linear-gradient(110deg, #241a32, var(--surface)); border-color: var(--line); }
+:root :is(.suggestion-chips button, .research-coins > div) { background: linear-gradient(135deg, #201829, #1b1525); color: var(--purple-deep); border-color: #3b2d4a; }
+:root .suggestion-chips button:hover { background: var(--surface-hover); border-color: #71518e; }
+:root .user-question { background: #2d1f3e; color: #d0b6ec; border-color: #4c345f; }
+:root :is(.result-label, .research-supply, .research-sources a, .research-composer) { border-color: var(--line); }
+:root .research-sources a > span { background: #2c203b; color: var(--purple); }
+:root .research-sources a > svg { color: var(--purple); }
+:root .research-composer { background: #120f1b; }
+:root .step-circle { border-color: #51405f; }
+:root .skeleton > :is(span, b) { background: #30273e; }
+
+/* The analysis portal sits outside .workspace, so it shares the root tokens. */
+:root .analysis-dialog { color: var(--text); background: var(--surface); border-color: #503968; box-shadow: 0 32px 100px #0009, 0 0 0 6px #9b70c20b; }
+:root .analysis-dialog::backdrop { background: #06040bbb; }
+:root .analysis-modal-surface { background: radial-gradient(ellipse 650px 450px at 80% 0, #6c389025, transparent 80%), var(--surface); }
+:root .analysis-modal-header { background: #191322ed; border-color: var(--line); }
+:root :is(.analysis-modal-header h1, .debate-heading h1, .debate-agent h2,
+  .debate-results-heading h2, .debate-dispute h3, .audio-zone-heading h2,
+  .audio-speaker b, .audio-transcript h3, .debate-loader h3) { color: var(--text); }
+:root .analysis-dialog .debate-heading h2 { color: var(--secondary); }
+:root :is(.analysis-modal-eyebrow, .analysis-modal-asset b, .debate-kicker,
+  .debate-opening-grid h3, .debate-gaps h3, .debate-method summary,
+  .audio-eyebrow, .audio-transcript > span, .audio-transcript a,
+  .audio-voice-settings, .audio-voice-settings button, .debate-citations a,
+  .debate-progress li.active, .debate-back) { color: var(--purple); }
+:root :is(.analysis-modal-asset, .analysis-modal-message, .debate-heading p,
+  .debate-agent h2 span, .debate-agent > p, .agent-task, .debate-progress li,
+  .debate-footnote, .debate-preliminary > p, .debate-results-heading > p,
+  .debate-dispute > header > span, .debate-dispute header > b,
+  .dispute-columns small, .debate-gaps p, .debate-method p, .debate-no-evidence,
+  .audio-zone-heading p, .audio-speaker > div > span, .audio-voice-settings label,
+  .audio-transcript p, .audio-playback > span, .audio-cost-note, .audio-empty p,
+  .debate-loader p) { color: var(--muted); }
+:root :is(.analysis-modal-close, .debate-actions button, .debate-totals > span,
+  .audio-provider-status, .audio-playback button, .audio-empty button,
+  .audio-voice-settings select) { background: var(--surface-raised); border-color: #443151; color: var(--purple-deep); }
+:root :is(.analysis-modal-close, .debate-actions button):hover { background: var(--surface-hover); border-color: #71518e; color: var(--purple-deep); }
+:root .debate-arena { background: radial-gradient(ellipse at 25% 30%, #26856112, transparent 45%), radial-gradient(ellipse at 75% 30%, #b5526c12, transparent 45%), linear-gradient(145deg, #1d1728, var(--surface)); border-color: #3d2f49; box-shadow: 0 12px 50px #0002; }
+:root .debate-agent { --agent-color: #62c7a2; --agent-soft: #1b342e; }
+:root .debate-agent.bear { --agent-color: #ee90a5; --agent-soft: #392330; }
+:root .agent-orb { background: linear-gradient(135deg, #1c1827, var(--agent-soft)); border-color: color-mix(in srgb, var(--agent-color) 30%, var(--surface)); box-shadow: 0 14px 30px #0003, inset 0 1px 0 #ffffff08; }
+:root :is(.agent-task, .debate-agent > .agent-thesis, .debate-opening-grid > div,
+  .debate-dispute, .debate-method, .audio-transcript, .audio-speaker) { background: var(--surface); border-color: var(--line); }
+:root :is(.debate-agent > .agent-thesis, .debate-opening-grid p, .dispute-columns p) { color: var(--secondary); }
+:root :is(.debate-preliminary > h2, .debate-opening-grid h4, .debate-setup h2) { color: var(--text); }
+:root :is(.debate-dispute > header, .debate-gaps) { background: #1e1829; border-color: var(--line); }
+:root :is(.dispute-columns > div + div, .dispute-columns small, .debate-opening-grid article + article) { border-color: var(--line); }
+:root :is(.dispute-side, .debate-dispute header > .concede) { color: var(--positive); }
+:root :is(.bear > .dispute-side, .debate-dispute header > .challenge, .audio-error, .audio-voice-settings > p) { color: var(--negative); }
+:root :is(.debate-heading p b, .debate-connection span, .setup-symbol) { color: var(--purple); background: #302040; border-color: #51376a; }
+:root .debate-progress-track { background: #30263e; }
+:root .debate-progress-track > span { background: var(--gradient); }
+:root :is(.debate-setup, .audio-setup) { background: linear-gradient(120deg, #291d38, #1b1525); color: var(--secondary); border-color: #493255; }
+:root .debate-setup pre { background: var(--surface); color: var(--secondary); border-color: var(--line); }
+:root :is(.debate-setup small, .audio-setup p, .audio-setup code, .audio-setup button) { color: var(--muted); }
+:root .debate-error { background: #2b1a25; border-color: #5b3044; color: var(--secondary); }
+:root .debate-error h2 { color: var(--negative); }
+:root .debate-loader-art::before { background: radial-gradient(circle, #74469b26, transparent 70%); }
+:root .debate-loader-ring { border-color: #3e2e50; }
+:root .debate-loader-ring::before { border-top-color: #ab7bd8; border-right-color: #65417e; }
+:root .debate-loader-ring.inner { border-color: #75508d80; }
+:root .debate-loader-center { background: linear-gradient(145deg, #2b1e3c, #21172f); color: var(--purple); border-color: #5d3e77; box-shadow: 0 10px 30px #0003; }
+:root .debate-loader-avatar { background: #193029; color: var(--positive); border-color: #335e4e; }
+:root .debate-loader-avatar.bear { background: #35202b; color: var(--negative); border-color: #64404f; }
+:root .debate-audio-zone { background: radial-gradient(ellipse at top right, #64348520, transparent 65%), var(--surface); border-color: var(--line); }
+:root .analysis-dialog .debate-audio-zone.is-embedded { background: transparent; }
+:root .audio-speaker { --voice-color: #62c7a2; }
+:root .audio-speaker.bear { --voice-color: #ee90a5; }
+:root .audio-avatar { background: color-mix(in srgb, var(--voice-color) 10%, var(--surface)); border-color: color-mix(in srgb, var(--voice-color) 30%, var(--surface)); }
+:root .audio-speaker.is-speaking { border-color: color-mix(in srgb, var(--voice-color) 45%, var(--surface)); box-shadow: 0 4px 25px #0003; }
+:root .audio-playback .audio-play-main { color: #f3eafa; background: var(--gradient); border-color: #9664c5; }

@@ -26,7 +26,7 @@ function failure(error: unknown) {
 }
 export function createBearBullApi(options: {
   getConfig: () => AnalysisConfig
-  getContext: (coinId: string) => Promise<DebateContext>
+  getContext: (coinId: string, signal: AbortSignal) => Promise<DebateContext>
   fetcher?: typeof fetch
   taskRunner?: (task: AgentTask) => Promise<unknown>
   onResult?: (result: DebateResult) => unknown
@@ -144,7 +144,7 @@ export function createBearBullApi(options: {
       res.flushHeaders()
       heartbeat = setInterval(() => emit({ type: "heartbeat" }), 15_000)
       emit({ type: "phase", phase: "context" })
-      const context = await options.getContext(coinId)
+      const context = await options.getContext(coinId, controller.signal)
       controller.signal.throwIfAborted()
       const result = await runDebate({
         config,

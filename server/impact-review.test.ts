@@ -1,8 +1,8 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { createImpactReviewer, validateClassifications, priceOnlyHeadline } from "./impact-review.ts"
+import { createImpactReviewer, validateClassifications, validatePartialClassifications, priceOnlyHeadline } from "./impact-review.ts"
 import type { ReviewInput, ReviewStore } from "./impact-review.ts"
-import { impactAgentDefinition, impactAgentName } from "./impact-agent-definition.ts"
+import { impactAgentDefinition, impactAgentName, impactAnalystDefinition } from "./impact-agent-definition.ts"
 import type { MarketCoin, MarketResponse, FeedResponse, FeedItem } from "../src/data-types"
 import { analyzeCoinImpact } from "../src/coin-impact.ts"
 import { reviewedEvidence } from "../src/impact-types.ts"
@@ -45,12 +45,12 @@ test("neutral context, supply snapshots and unreviewed rows never inflate Inconc
 test("fresh instances share item results; changed content and different assets require new reviews", async () => {
   const store = memory(); let calls = 0; let sources = 0
   const make = () => createImpactReviewer({ getConfig: () => config, store, fetcher: discovery,
-    readExcerpt: async () => { sources++; return "" }, runTask: async (task) => {
+    readExcerpt: async row => { sources++; return row.title }, runTask: async (task) => {
       calls++
       assert.equal(task.kind, "submit_classification")
       assert.equal(task.prompt.includes(config.apiKey), false)
       const data = JSON.parse(task.prompt.slice(task.prompt.indexOf("\n") + 1))
-      return { labels: data.map((i: any) => ({ id: i.id, label: "neutral", basis: "headline", quote: i.headline, reason: "This is factual background with no supported directional impact on the target." })) }
+      return { labels: data.map((i: any) => ({ id: i.id, label: "neutral", basis: "headline", quote: i.headline, reference_ids: [], reference_quotes: [], verification_reason: "No accessible article text was available to support this claim.", reason: "This is factual background with no supported directional impact on the target." })) }
     },
   })
   const c = coin(); const f = feed()
@@ -86,11 +86,147 @@ test("read-only polling returns pending evidence without starting a paid task", 
 
 test("incomplete model output is not cached as a verdict and has a cooldown", async () => {
   let calls = 0
-  const reviewer = createImpactReviewer({ getConfig: () => config, store: memory(), fetcher: discovery, readExcerpt: async () => "", runTask: async () => { calls++; return { labels: [] } } })
+  const reviewer = createImpactReviewer({ getConfig: () => config, store: memory(), fetcher: discovery, readExcerpt: async row => row.title, runTask: async () => { calls++; return { labels: [] } } })
   const c = coin(), f = feed()
-  await assert.rejects(reviewer(c, market(c), f, signal()), /every supplied/)
+  await assert.rejects(reviewer(c, market(c), f, signal()), /verifiable classifications/)
   await assert.rejects(reviewer(c, market(c), f, signal()), /recent impact review failed/)
   assert.equal(calls, 1)
+})
+
+test("short task ids map to real news ids; invalid and duplicate evidence stays pending", () => {
+  const first = inputs()[0]
+  const data = [first, { ...first, row: { ...first.row, id: "second" } }, { ...first, row: { ...first.row, id: "third" } }]
+    .map((input, index) => ({ ...input, taskId: `news_${index + 1}` }))
+  const labels = data.map((input) => ({ ...output([input]).labels[0], id: input.taskId }))
+  const valid = validatePartialClassifications({ labels: [labels[0], { ...labels[1], quote: "Invented evidence with no matching source" }] }, data, "bitcoin")
+  assert.equal(valid.length, 1)
+  assert.equal(valid[0].id, first.row.id)
+  assert.equal(valid[0].input, JSON.stringify(["bitcoin", first.row.id, first.row.url, first.row.title, first.row.at, first.row.scope, ""]))
+  assert.throws(() => validatePartialClassifications({ labels: [labels[0], labels[0]] }, data, "bitcoin"), /verifiable/)
+})
+
+test("partial successes survive a retry; only remaining news starts another task", async () => {
+  const store = memory(); let calls = 0
+  const c = coin(), f = feed([item(), item("Bitcoin ETF records net inflows", "https://coindesk.com/news/b")])
+  const make = () => createImpactReviewer({ getConfig: () => config, store, fetcher: discovery, readExcerpt: async row => row.title,
+    runTask: async (task) => {
+      calls++
+      const data = JSON.parse(task.prompt.slice(task.prompt.indexOf("\n") + 1))
+      assert.equal(data.length, calls === 1 ? 2 : 1)
+      if (calls === 2) assert.equal(data[0].url, f.items[1].url)
+      return { labels: data.map((i: any, index: number) => ({ id: i.id, label: "neutral", basis: "headline",
+        quote: calls === 1 && index === 1 ? "An invented quotation from nowhere" : i.headline,
+        reference_ids: [], reference_quotes: [], verification_reason: "No accessible article text was available to support this claim.",
+        reason: "This is factual background without a supported directional mechanism." })) }
+    },
+  })
+  const first = await make()(c, market(c), f, signal())
+  assert.equal(first.labels.length, 1); assert.equal(first.pending, 1)
+  const polled = await make()(c, market(c), f, signal(), true)
+  assert.equal(polled.labels.length, 1); assert.equal(polled.pending, 1); assert.equal(calls, 1)
+  const second = await make()(c, market(c), f, signal())
+  assert.equal(second.labels.length, 2); assert.equal(second.newlyReviewed, 1); assert.equal(second.pending, 0)
+  const cached = await make()(c, market(c), f, signal())
+  assert.equal(cached.newlyReviewed, 0); assert.equal(calls, 2)
+})
+
+const nextTurn = () => new Promise<void>(resolve => setImmediate(resolve))
+async function until(check: () => boolean) {
+  for (let i = 0; i < 100; i++) { if (check()) return; await nextTurn() }
+  assert.fail("Expected worker progress")
+}
+function taskOutput(task: { prompt: string }) {
+  const data = JSON.parse(task.prompt.slice(task.prompt.indexOf("\n") + 1))
+  return { labels: data.map((i: any) => ({ id: i.id, label: "neutral", basis: "headline", quote: i.headline, reference_ids: [], reference_quotes: [], verification_reason: "No accessible article text was available to support this claim.",
+    reason: "The report is factual background without a supported directional mechanism." })) }
+}
+
+test("three workers split twelve news items, publish partial cache and retry only a failed batch", async () => {
+  const c = coin(), f = feed(Array.from({ length: 12 }, (_, i) => item(`Bitcoin exchange event number ${i}`, `https://coindesk.com/news/${i}`)))
+  let active = 0, peak = 0
+  const tasks: { prompt: string; resolve: (value: unknown) => void; reject: (error: Error) => void }[] = []
+  const reviewer = createImpactReviewer({ getConfig: () => config, store: memory(), fetcher: discovery, readExcerpt: async row => row.title,
+    runTask: async task => {
+      active++; peak = Math.max(peak, active)
+      try { return await new Promise((resolve, reject) => tasks.push({ prompt: task.prompt, resolve, reject })) }
+      finally { active-- }
+    },
+  })
+  const pending = reviewer(c, market(c), f, signal())
+  await until(() => tasks.length === 3)
+  assert.equal(peak, 3)
+  const ids = tasks.flatMap(task => taskOutput(task).labels.map((label: any) => label.id))
+  assert.equal(ids.length, 12); assert.equal(new Set(ids).size, 12)
+  assert.ok(tasks.every(task => taskOutput(task).labels.length === 4))
+  tasks[0].resolve(taskOutput(tasks[0]))
+  tasks[1].reject(new Error("Simulated provider failure"))
+  await until(() => active === 1)
+  const partial = await reviewer(c, market(c), f, signal(), true)
+  assert.equal(partial.labels.length, 4); assert.equal(partial.pending, 8); assert.equal(partial.running, true)
+  await assert.rejects(reviewer(c, market(c), f, signal()), /already running/)
+  tasks[2].resolve(taskOutput(tasks[2]))
+  const first = await pending
+  assert.equal(first.labels.length, 8); assert.equal(first.pending, 4); assert.equal(first.running, false)
+  const stopped = await reviewer(c, market(c), f, signal(), true)
+  assert.equal(stopped.running, false); assert.equal(tasks.length, 3)
+  const retry = reviewer(c, market(c), f, signal())
+  await until(() => tasks.length === 4)
+  const inputs = (task: { prompt: string }) => JSON.parse(task.prompt.slice(task.prompt.indexOf("\n") + 1)).map((row: any) => row.url).sort()
+  assert.deepEqual(inputs(tasks[3]), inputs(tasks[1]))
+  tasks[3].resolve(taskOutput(tasks[3]))
+  const second = await retry
+  assert.equal(second.labels.length, 12); assert.equal(second.newlyReviewed, 4); assert.equal(second.pending, 0)
+  assert.equal((await reviewer(c, market(c), f, signal())).newlyReviewed, 0)
+  assert.equal(tasks.length, 4)
+})
+
+test("a configured worker limit queues remaining batches and cancellation stops queued paid tasks", async () => {
+  const c = coin(), f = feed(Array.from({ length: 5 }, (_, i) => item(`Bitcoin exchange event ${i}`, `https://coindesk.com/news/${i}`)))
+  const controller = new AbortController()
+  let calls = 0
+  const tasks: { prompt: string; resolve: (value: unknown) => void }[] = []
+  const reviewer = createImpactReviewer({ getConfig: () => ({ ...config, impactReviewConcurrency: 2, impactReviewBatchSize: 1 }),
+    store: memory(), fetcher: discovery, readExcerpt: async row => row.title, runTask: task => {
+      calls++
+      return new Promise((resolve, reject) => {
+        const abort = () => reject(task.signal.reason)
+        task.signal.addEventListener("abort", abort, { once: true })
+        tasks.push({ prompt: task.prompt, resolve: value => { task.signal.removeEventListener("abort", abort); resolve(value) } })
+      })
+    },
+  })
+  const work = reviewer(c, market(c), f, controller.signal)
+  const rejected = assert.rejects(work, { name: "AbortError" })
+  await until(() => tasks.length === 2)
+  tasks[0].resolve(taskOutput(tasks[0]))
+  await until(() => tasks.length === 3)
+  controller.abort()
+  await rejected
+  assert.equal(calls, 3, "Remaining two batches were never started")
+  const cached = await reviewer(c, market(c), f, signal(), true)
+  assert.equal(cached.labels.length, 1); assert.equal(cached.pending, 4); assert.equal(cached.running, false)
+})
+
+test("unsupported original links skip inference; explicit retry reopens only that source", async () => {
+  const c = coin(), f = feed([item(), item("Bitcoin ETF records net inflows", "https://coindesk.com/news/b")])
+  let calls = 0, reads = 0
+  const reviewer = createImpactReviewer({ getConfig: () => config, store: memory(), fetcher: discovery,
+    readExcerpt: async () => { reads++; return "" }, runTask: async () => { calls++; throw new Error("No model needed") },
+  })
+  const first = await reviewer(c, market(c), f, signal())
+  assert.ok(first.labels.every(value => value.label === "unknown"))
+  assert.equal((await reviewer(c, market(c), f, signal())).newlyReviewed, 0)
+  const retry = await reviewer(c, market(c), f, signal(), false, f.items[0].id)
+  assert.equal(retry.newlyReviewed, 1); assert.equal(calls, 0); assert.equal(reads, 3); assert.equal(retry.labels.length, 2)
+})
+
+test("impact-only analyst has a bounded thinking budget and no reference assessment fields", () => {
+  const d = impactAnalystDefinition(config.model, 1024)
+  const prompt = d.conversation_config.agent.prompt
+  const fields = prompt.tools[0].parameters.properties.labels.items.required
+  for (const field of ["reference_ids", "reference_quotes", "verification_reason"]) assert.equal(fields.includes(field), false)
+  assert.equal(prompt.thinking_budget, 1024)
+  assert.deepEqual(prompt.tools.map(tool => tool.name), ["submit_classification"])
 })
 
 test("impact agent uses one bounded submission tool with authenticated English Gemini and no backup", () => {

@@ -45,13 +45,14 @@ export function createAudioApi(options: { getConfig: () => ElevenConfig; fetcher
     for (const [id, report] of reports) if (report.expires <= Date.now()) reports.delete(id)
     for (const [key, clip] of clips) if (clip.expires <= Date.now()) { clips.delete(key); clipBytes -= clip.bytes.length }
   }
-  function register(result: DebateResult) {
+  function registerManifest(manifest: AudioManifest) {
     prune()
-    if (reports.has(result.reportId)) return options.getConfig().apiKey ? tokens.issue(reports.get(result.reportId)!.manifest) : undefined
-    const manifest = buildAudioManifest(result)
     if (reports.size >= 10) reports.delete(reports.keys().next().value!)
-    reports.set(result.reportId, { expires: Date.now() + 3_600_000, manifest })
+    reports.set(manifest.reportId, { expires: Date.now() + 3_600_000, manifest })
     return options.getConfig().apiKey ? tokens.issue(manifest) : undefined
+  }
+  function register(result: DebateResult) {
+    return registerManifest(buildAudioManifest(result))
   }
   async function voices(config: ElevenConfig): Promise<VoiceProfile[]> {
     const key = fingerprint(config.apiKey)
@@ -200,5 +201,5 @@ export function createAudioApi(options: { getConfig: () => ElevenConfig; fetcher
     }
     return true
   }
-  return { register, handle }
+  return { register, registerManifest, handle }
 }

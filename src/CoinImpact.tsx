@@ -1,9 +1,16 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import type { FeedResponse, MarketCoin } from "./data-types"
 import { analyzeCoinImpact, impactLabels } from "./coin-impact"
 import { impactInput, reviewedEvidence } from "./impact-types"
 import useImpactReview from "./useImpactReview"
+import useImpactReport from "./useImpactReport"
+import useReportAudio from "./useReportAudio"
+import ImpactReport from "./ImpactReport"
+import ReportAudioModal from "./ReportAudioModal"
+import type { ImpactReportSnapshot } from "./impact-report"
+import { newsReviewInput } from "./news-review-types"
 import type { ImpactTone } from "./coin-impact"
+import type { ImpactActivity } from "./pipeline-status"
 import "./coin-impact.css"
 
 const tones: ImpactTone[] = ["positive", "negative", "unknown"]
@@ -15,7 +22,7 @@ function timestamp(value: string) {
     : "Time unavailable"
 }
 
-export default function CoinImpact({ coin, feed, now, marketStale, feedError, loading, onAnalyze }: {
+export default function CoinImpact({ coin, feed, now, marketStale, feedError, loading, onAnalyze, onReviewActivity }: {
   coin: MarketCoin
   feed: FeedResponse | null
   now: number
@@ -23,15 +30,30 @@ export default function CoinImpact({ coin, feed, now, marketStale, feedError, lo
   feedError: boolean
   loading: boolean
   onAnalyze: () => void
+  onReviewActivity?: (activity: ImpactActivity) => void
 }) {
   const base = useMemo(() => analyzeCoinImpact({ coin, feed, now, marketStale, feedError }),
     [coin, feed, now, marketStale, feedError])
-  const reviewKey = JSON.stringify(base.evidence.filter((item) => !item.id.startsWith("supply:")).map((item) => impactInput(coin.id, item))) + Math.floor(now / 1_800_000)
+  const latestNewsKey = JSON.stringify([...(feed?.items ?? [])].sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt)).slice(0, 5).map(newsReviewInput))
+  const reviewKey = JSON.stringify(base.evidence.filter((item) => !item.id.startsWith("supply:")).map((item) => impactInput(coin.id, item))) + latestNewsKey + Math.floor(now / 1_800_000)
   const agent = useImpactReview(coin.id, reviewKey, Boolean(feed && base.feedCurrent && base.marketCurrent && !feedError))
   const reviewed = reviewedEvidence(coin.id, base.evidence, agent.review, base.feedCurrent && base.marketCurrent && !feedError)
   const result = { ...base, ...reviewed }
+  const reviewEnabled = Boolean(feed && base.feedCurrent && base.marketCurrent && !feedError)
+  const reviewedCount = agent.review?.coinId === coin.id ? agent.review.labels.length : 0
+  const pendingCount = agent.review?.coinId === coin.id ? agent.review.pending ?? result.pending.length : result.pending.length
+  const reviewRunning = reviewEnabled && (agent.busy || agent.review?.running === true)
+  useEffect(() => {
+    onReviewActivity?.({ coinId: coin.id, enabled: reviewEnabled, busy: reviewRunning, error: reviewEnabled ? agent.error : "", reviewed: reviewedCount, pending: pendingCount })
+  }, [coin.id, reviewEnabled, reviewRunning, agent.error, reviewedCount, pendingCount, onReviewActivity])
   const [expanded, setExpanded] = useState(false)
   const [filter, setFilter] = useState<ImpactTone | null>(null)
+  const report = useImpactReport(coin.id)
+  const [listenOpen, setListenOpen] = useState(false)
+  const [narrationReport, setNarrationReport] = useState<ImpactReportSnapshot | null>(null)
+  const speech = useReportAudio(coin.id, setNarrationReport)
+  const closeListen = () => { speech.stop(); setListenOpen(false) }
+  const reportOpen = Boolean(report.report || report.error)
   const total = result.evidence.length
   const pending = (loading && !feed) || (agent.busy && !total)
   const visible = filter ? result.evidence.filter((item) => item.tone === filter) : result.evidence
@@ -42,10 +64,14 @@ export default function CoinImpact({ coin, feed, now, marketStale, feedError, lo
   }
 
   return (
-    <section className="coin-impact" aria-labelledby="impact-title" aria-busy={pending}>
+    <><section className="coin-impact" aria-labelledby="impact-title" aria-busy={pending}>
       <div className="impact-heading">
         <h3 id="impact-title">Overviews</h3>
-        <button className="impact-analyze" onClick={onAnalyze} aria-haspopup="dialog"><span aria-hidden="true">✦</span> Analysis by Bear/Bull <span aria-hidden="true">↗</span></button>
+        <div className="impact-actions">
+          <button className="impact-report-button" onClick={() => { speech.stop(); if (reportOpen) report.close(); else void report.generate() }} disabled={report.busy} aria-expanded={reportOpen || report.busy} aria-controls="impact-report"><span aria-hidden="true">{reportOpen ? "×" : "▤"}</span>{report.busy ? "Generating…" : reportOpen ? "Close" : "Report"}</button>
+          <button className="impact-report-button impact-listen-button" onClick={() => { setNarrationReport(null); setListenOpen(true); void speech.listen() }} disabled={report.busy} aria-haspopup="dialog" aria-label="Listen to report" title="Read this asset's report aloud with ElevenLabs"><span aria-hidden="true">▶</span>Listen</button>
+          <button className="impact-analyze" onClick={() => { speech.stop(); onAnalyze() }} aria-haspopup="dialog"><span aria-hidden="true">✦</span> Bear/Bull <span aria-hidden="true">↗</span></button>
+        </div>
       </div>
       <div className={`impact-meter ${pending ? "is-loading" : ""}`} aria-label={pending ? "Gathering evidence" : `${total} sources: positive ${result.counts.positive}, negative ${result.counts.negative}, inconclusive ${result.counts.unknown}`}>
         {!pending && tones.map((tone) => result.counts[tone] > 0 && (
@@ -59,11 +85,12 @@ export default function CoinImpact({ coin, feed, now, marketStale, feedError, lo
           />
         ))}
       </div>
+      <audio ref={speech.audio} preload="none" onEnded={speech.ended} onError={speech.mediaError} />
       <div className="impact-review-status" role="status">
-        {agent.busy ? <span className="impact-review-running">✦ Reviewing news for {coin.symbol}…</span>
+        {agent.busy ? <span className="impact-review-running">✦ Reviewing news for {coin.symbol}…{agent.review?.coinId === coin.id && agent.review.labels.length > 0 ? ` · ${agent.review.labels.length} reviewed` : ""}</span>
           : agent.error ? <span>{agent.error} <button onClick={agent.retry}>Retry review</button></span>
           : !base.feedCurrent || !base.marketCurrent ? <span>Fresh data is needed before Agent review.</span>
-          : <span>✦ {agent.review?.coinId === coin.id ? "Agent reviewed" : "Awaiting Agent review"} · {total} signals{result.context.length ? ` · ${result.context.length} context` : ""}{result.pending.length ? ` · ${result.pending.length} awaiting review` : ""}</span>}
+          : <span>✦ {agent.review?.coinId === coin.id ? "Review complete" : "Awaiting review"} · {total} signals{result.context.length ? ` · ${result.context.length} context` : ""}{result.pending.length ? ` · ${result.pending.length} awaiting review` : ""}{agent.review?.coinId === coin.id && result.pending.length > 0 && <> <button onClick={agent.retry}>Review remaining</button></>}</span>}
       </div>
       <div className="impact-bottom"><div className="impact-legend" aria-label="Filter evidence by impact">
         {tones.map((tone) => (
@@ -94,8 +121,10 @@ export default function CoinImpact({ coin, feed, now, marketStale, feedError, lo
                 </div>
                 <a href={item.url} target="_blank" rel="noreferrer">{item.title} <span aria-hidden="true">↗</span></a>
                 <p>{item.reason}</p>
-                <small>{item.source} · {item.domain}{item.agent ? ` · Agent · ${item.agent.basis}` : ""}</small>
+                <small>{item.source} · {item.domain}{item.agent ? item.agent.verification?.status === "unverified" ? " · Source check · no model inference" : ` · Impact Agent · ${item.agent.basis}` : ""}</small>
                 {item.agent?.quote && <blockquote>{item.agent.quote}</blockquote>}
+                {item.agent?.verification?.status === "unverified" && <small className="impact-source-missing">No evidence · Inconclusive</small>}
+                {!!item.agent?.verification?.references.length && <div className="impact-source-references"><span>Ref.</span>{item.agent.verification.references.map(reference => <a key={reference.url} href={reference.url} title={reference.title} target="_blank" rel="noreferrer">{reference.source} ↗</a>)}</div>}
               </article>
             ))}
             {!visible.length && <p className="impact-empty">{pending ? "Gathering evidence…" : "No evidence in this category yet"}</p>}
@@ -105,7 +134,7 @@ export default function CoinImpact({ coin, feed, now, marketStale, feedError, lo
           {result.gaps.length > 0 && <div className="impact-gaps">{result.gaps.map((gap) => <p key={gap}>{gap}</p>)}</div>}
           <details className="impact-method">
             <summary>Methodology and coverage</summary>
-            <p>An ElevenLabs Agent reviews each eligible item for the selected asset using the headline, an available bounded article excerpt, or structured unlock data. Each label includes a reason and an exact supporting excerpt. Neutral background and supply snapshots appear under Context and do not enter the bar. Pending or failed reviews are not labelled Inconclusive. Mixed or insufficient relevant evidence can remain Inconclusive. This is event-impact interpretation, not a price forecast.</p>
+            <p>A separate source worker opens the original publisher link and matches the supplied headline or excerpt against the retrieved page text. It does not search other websites or use an AI model. An ElevenLabs Agent then reasons about asset impact using the matched text or structured unlock data. If no text matches, the story stays visible as Inconclusive without an extra model call. Pending or interrupted analysis is excluded until completion. Neutral supported background and supply snapshots appear under Context. Green Approved means both stages completed, not certified factual truth. This is event-impact interpretation, not a price forecast.</p>
             <p>Tokenomics uses CoinGecko supply data and up to 25 upcoming Tokenomist cliff unlocks, filtered to this asset within 30 days. The Agent considers the supplied unlock date and amount; an unlock does not establish actual selling. Supply totals or a missing unlock are not positive signals. Duplicate URLs and titles are removed, but different reports of the same event may remain.</p>
             <p>The bar shows the share of Agent-reviewed signals, not price probabilities. Results are cached per asset and evidence item; new or changed items need review. Different domains do not establish independent confirmation. Coverage is limited to 12 asset headlines, 6 market headlines, 6 tokenomics items and 1 supply snapshot. Bear/Bull uses ElevenLabs Agents for a separate analysis and debate.</p>
             <a href="https://tokenomist.ai/learn/glossary-term/unlocked-supply" target="_blank" rel="noreferrer">Learn about unlocked supply at Tokenomist ↗</a>
@@ -113,5 +142,8 @@ export default function CoinImpact({ coin, feed, now, marketStale, feedError, lo
         </div>
       )}
     </section>
+    <ImpactReport report={report.report} busy={report.busy} error={report.error} />
+    {listenOpen && <ReportAudioModal coin={coin} report={narrationReport} speech={speech} onClose={closeListen} />}
+    </>
   )
 }

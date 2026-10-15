@@ -19,6 +19,7 @@ export type FeedItem = {
   publishedAt: string
   kind: "News" | "Tokenomics"
   topics: string[]
+  summary?: string
   unlock?: {
     date: string
     amount: number
@@ -43,4 +44,5 @@ export type FeedResponse = {
   fetchedAt: string
   stale: boolean
   unavailableSources: string[]
+  sourceCoverage?: { total: number; supported: number; excluded: number }
 }

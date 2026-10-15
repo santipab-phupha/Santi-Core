@@ -29,6 +29,13 @@ test("Decrypt filters unrelated technology stories and keeps crypto coverage", (
   )
 })
 
+test("publisher RSS excerpts remain bounded plain text for source-backed review", () => {
+  const xml = `<rss><channel><item><title>Bitcoin ETF update</title><link>https://coindesk.com/etf</link><pubDate>Wed, 14 Oct 2026 07:00:00 GMT</pubDate><description><![CDATA[<p>The ETF reported &amp; confirmed net inflows.</p>]]></description></item></channel></rss>`
+  const parsed = parseFeed(xml, "CoinDesk")
+  assert.equal(parsed[0].summary, "The ETF reported & confirmed net inflows.")
+  assert.equal(parsed[0].summary.includes("<p>"), false)
+})
+
 test("Tokenomist Research articles retain publisher dates and links, including new items without duplication", () => {
   const item = (title: string, link: string, at: string) => `<item><title>${title}</title><link>${link}</link><pubDate>${at}</pubDate></item>`
   const first = item("Tokenomics research", "https://insights.unlocks.app/research-a/", "Wed, 14 Oct 2026 06:00:00 GMT")
@@ -76,6 +83,7 @@ test("API cache shares in-flight requests and returns clearly marked stale data 
   }
   try {
     const plugin = workspaceApi()
+    ;(plugin.configResolved as (config: unknown) => void)({ root: `${process.cwd()}/test-fixtures-no-credentials` })
     let middleware: (req: unknown, res: unknown, next: () => void) => void
     const install = plugin.configureServer as (server: unknown) => void
     install({
@@ -111,6 +119,24 @@ test("API cache shares in-flight requests and returns clearly marked stale data 
     globalThis.fetch = originalFetch
     Date.now = originalNow
   }
+})
+
+test("market endpoint requests the largest 50 assets in one call and returns actual sorted caps", async () => {
+  const previous=globalThis.fetch;let calls=0
+  globalThis.fetch=async raw=>{
+    calls++
+    const url=new URL(String(raw))
+    assert.equal(url.searchParams.get("per_page"),"50")
+    assert.equal(url.searchParams.get("order"),"market_cap_desc")
+    return Response.json(Array.from({length:55},(_,i)=>({id:`coin-${i}`,name:`Coin ${i}`,symbol:`c${i}`,current_price:1,market_cap:i+1,market_cap_rank:55-i,last_updated:new Date().toISOString()})))
+  }
+  try{
+    const handler=createWorkspaceHandler(`${process.cwd()}/test-fixtures-no-credentials`)
+    let body:any
+    await handler({url:"/api/market",method:"GET"} as any,{setHeader(){},end(value:string){body=JSON.parse(value)}} as any)
+    assert.equal(calls,1);assert.equal(body.coins.length,50)
+    assert.equal(body.coins[0].marketCap,55);assert.equal(body.coins.at(-1).marketCap,6)
+  }finally{globalThis.fetch=previous}
 })
 
 test("one-minute feed checks share requests, bring in new Tokenomist articles and identify source failures", async () => {

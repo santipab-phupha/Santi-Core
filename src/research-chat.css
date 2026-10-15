@@ -1,0 +1,27 @@
+:root .research-chat { width: 500px; }
+.research-chat-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 18px; border-bottom: 1px solid var(--line); color: var(--positive); font-size: 11px; }
+.research-chat-toolbar button { padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-raised); color: var(--secondary); font-size: 11px; }
+.research-chat .research-messages { scroll-behavior: smooth; }
+.research-chat .assistant-mark { font-size: 25px; }
+.research-chat .icon-button { font-size: 25px; }
+.research-chat .research-notice > button { display: block; margin-top: 8px; padding: 5px 9px; border: 1px solid #806a35; border-radius: 7px; background: transparent; color: inherit; font-size: 12px; }
+.research-chat-progress { display: flex; gap: 9px; align-items: center; margin: 18px 0; color: var(--purple); font-size: 12px; }
+.research-chat-progress .step-spinner { flex-shrink: 0; }
+.research-chat-answer { padding: 18px 0 8px; color: var(--secondary); line-height: 1.75; font-size: 13px; overflow-wrap: anywhere; }
+.research-answer-summary { color: var(--text); white-space: pre-wrap; font-size: 14px; }
+.research-answer-section { margin-top: 18px; }
+.research-answer-section h4 { margin-bottom: 7px; font-size: 14px; color: var(--purple-deep); font-weight: 500; }
+.research-answer-section > p { white-space: pre-wrap; }
+.research-answer-refs { display: grid; gap: 7px; margin-top: 10px; }
+.research-answer-refs a { display: block; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-raised); color: var(--purple); }
+.research-answer-refs a:hover { border-color: var(--purple); }
+.research-answer-refs small { display: block; color: var(--muted); font-size: 10px; }
+.research-answer-gaps { margin-top: 16px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); font-size: 12px; }
+.research-answer-gaps summary { cursor: pointer; color: var(--secondary); }
+.research-answer-gaps p { margin-top: 8px; }
+.research-answer-time { display: block; margin-top: 14px; color: var(--muted); font-size: 10px; }
+:root .research-composer .research-stop { display: block; width: auto; height: auto; margin: 0 auto 10px; padding: 6px 12px; border: 1px solid var(--line); background: var(--surface-raised); color: var(--secondary); }
+.research-chat button:disabled { opacity: .5; cursor: default; }
+.research-chat button:focus-visible, .research-chat a:focus-visible { outline: 2px solid var(--purple); outline-offset: 3px; }
+@media (max-width: 640px) { :root .research-chat { width: calc(100vw - 24px); } }
+@media (prefers-reduced-motion: reduce) { .research-chat .research-messages { scroll-behavior: auto; } .research-chat .step-spinner { animation: none; } }

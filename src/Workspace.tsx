@@ -6,11 +6,20 @@ import type {
   MarketCoin,
   MarketResponse,
 } from "./data-types"
-import { researchMatches, supplySnapshots } from "./research"
+import { supplySnapshots } from "./research"
+import ResearchPanel from "./ResearchPanel"
+import FinanceBackdrop from "./FinanceBackdrop"
+import CryptoHeatmap from "./CryptoHeatmap"
+import SourceQueueStatus from "./SourceQueueStatus"
 import { startResourcePoller } from "./resource-poller"
 import CoinImpact from "./CoinImpact"
 import BearBullModal from "./BearBullModal"
 import NewsAssetBadges from "./NewsAssetBadges"
+import NewsReviewDetails, { newsReviewClass } from "./NewsReviewDetails"
+import type { NewsReviews } from "./NewsReviewDetails"
+import useNewsReviews from "./useNewsReviews"
+import AgentPipeline from "./AgentPipeline"
+import type { ImpactActivity } from "./pipeline-status"
 import "./news-layout.css"
 
 type Glyph = "search" | "arrow" | "refresh" | "spark" | "close" | "send" | "audio" | "news" | "token" | "check" | "chevron" | "external"
@@ -246,13 +255,14 @@ function chartSymbol(coin: MarketCoin) {
   const base = coin.symbol.toUpperCase().replace(/[^A-Z0-9]/g, "")
   return base ? `BINANCE:${base}USDT` : "BINANCE:BTCUSDT"
 }
-function CoinChart({ coin, feed, now, marketStale, onAnalyze, news }: {
+function CoinChart({ coin, feed, now, marketStale, onAnalyze, news, onReviewActivity }: {
   coin: MarketCoin
   feed: ReturnType<typeof useResource<FeedResponse>>
   now: number
   marketStale: boolean
   onAnalyze: () => void
   news: ReactNode
+  onReviewActivity: (activity: ImpactActivity) => void
 }) {
   const chartRef = useRef<HTMLDivElement>(null)
   const [interval, setInterval] = useState("1")
@@ -286,14 +296,14 @@ function CoinChart({ coin, feed, now, marketStale, onAnalyze, news }: {
       symbol,
       interval,
       timezone: "Asia/Bangkok",
-      theme: "light",
+      theme: "dark",
       style: "1",
       locale: "en",
       allow_symbol_change: false,
       hide_side_toolbar: true,
       calendar: false,
-      backgroundColor: "#ffffff",
-      gridColor: "rgba(46, 46, 46, 0.06)",
+      backgroundColor: "#16131f",
+      gridColor: "rgba(187, 169, 211, 0.06)",
       support_host: "https://www.tradingview.com",
     })
     let active = true
@@ -308,7 +318,7 @@ function CoinChart({ coin, feed, now, marketStale, onAnalyze, news }: {
 
   return (
       <section id="coin-detail" className="market-detail" aria-labelledby="chart-title">
-        <CoinImpact key={coin.id} coin={coin} feed={feed.data} now={now} marketStale={marketStale} feedError={Boolean(feed.error) || feed.offline} loading={feed.loading} onAnalyze={onAnalyze} />
+        <CoinImpact key={coin.id} coin={coin} feed={feed.data} now={now} marketStale={marketStale} feedError={Boolean(feed.error) || feed.offline} loading={feed.loading} onAnalyze={onAnalyze} onReviewActivity={onReviewActivity} />
         <div className="market-columns">
         <div className="market-chart-column">
         <header className="chart-head">
@@ -350,13 +360,16 @@ function MarketSection({
   onResearch,
   onSelectCoin,
   selectedCoinId,
+  pipeline,
 }: {
   resource: ReturnType<typeof useResource<MarketResponse>>
   onResearch: (question: string) => void
   onSelectCoin: (coin: MarketCoin) => void
   selectedCoinId?: string
+  pipeline: ReactNode
 }) {
   const [expanded, setExpanded] = useState(false)
+  const [view, setView] = useState<"cards" | "heatmap">("cards")
   const coins = resource.data?.coins ?? []
   return (
     <section
@@ -373,71 +386,40 @@ function MarketSection({
           onRetry={resource.refresh}
         />
       )}
-      {resource.loading && !coins.length ? (
-        <div
-          className="market-cards"
-          aria-label="Loading market data"
-          aria-busy="true"
-        >
-          {Array.from({ length: 5 }, (_, i) => (
-            <div className="coin-card skeleton" key={i}>
-              <span />
-              <b />
-              <span />
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="market-cards">
-          {coins.slice(0, 5).map((coin, i) => (
-            <article
-              className={`coin-card ${coin.id === selectedCoinId ? "is-selected" : ""}`}
-              key={coin.id}
-              style={{ animationDelay: `${i * 55}ms` }}
-              onPointerMove={(event) => {
-                if (event.pointerType === "touch") return
-                const bounds = event.currentTarget.getBoundingClientRect()
-                const tiltX = ((event.clientX - bounds.left) / bounds.width - 0.5) * 2
-                const tiltY = (0.5 - (event.clientY - bounds.top) / bounds.height) * 2
-                event.currentTarget.style.setProperty("--spot-x", `${((event.clientX - bounds.left) / bounds.width) * 100}%`)
-                event.currentTarget.style.setProperty("--spot-y", `${((event.clientY - bounds.top) / bounds.height) * 100}%`)
-                event.currentTarget.style.setProperty("--tilt-x", `${tiltX.toFixed(2)}deg`)
-                event.currentTarget.style.setProperty("--tilt-y", `${tiltY.toFixed(2)}deg`)
-              }}
-              onPointerLeave={(event) => {
-                event.currentTarget.style.setProperty("--tilt-x", "0deg")
-                event.currentTarget.style.setProperty("--tilt-y", "0deg")
-              }}
-            >
-              <button className="coin-chart-trigger" onClick={() => onSelectCoin(coin)} aria-label={`Show ${coin.name} chart, 1 minute`} aria-pressed={coin.id === selectedCoinId} aria-controls="coin-detail">
-                <div className="coin-top">
-                  <CoinImage coin={coin} />
-                  <div>
-                    <h2>{coin.name}</h2>
-                    <span>{coin.symbol}</span>
-                  </div>
-                  <span className="rank">#{coin.rank}</span>
-                </div>
+      <div className="market-topbar">
+      {pipeline}
+      <div className="market-view-switch" role="group" aria-label="Market view">
+        <button type="button" aria-pressed={view === "cards"} aria-controls="market-visualization" onClick={() => setView("cards")}><span aria-hidden="true">▤</span> Cards</button>
+        <button type="button" aria-pressed={view === "heatmap"} aria-controls="market-visualization" onClick={() => setView("heatmap")}><span aria-hidden="true">▦</span> Heatmap</button>
+      </div>
+      </div>
+      <div id="market-visualization">
+        {view === "heatmap" ? resource.loading && !coins.length
+          ? <div className="heatmap-loading" role="status" aria-busy="true">Loading crypto heatmap…</div>
+          : <CryptoHeatmap coins={coins} selectedCoinId={selectedCoinId} onSelectCoin={onSelectCoin} onResearch={onResearch} />
+          : resource.loading && !coins.length ? <div className="market-cards" aria-label="Loading market data" aria-busy="true">{Array.from({length:5},(_,i)=><div className="coin-card skeleton" key={i}><span/><b/><span/></div>)}</div>
+          : <div className="market-cards">
+            {coins.slice(0,5).map((coin,i)=><article className={`coin-card ${coin.id === selectedCoinId ? "is-selected" : ""}`} key={coin.id} style={{animationDelay:`${i*55}ms`}}
+              onPointerMove={event=>{
+                if(event.pointerType==="touch")return
+                const bounds=event.currentTarget.getBoundingClientRect()
+                const x=(event.clientX-bounds.left)/bounds.width,y=(event.clientY-bounds.top)/bounds.height
+                event.currentTarget.style.setProperty("--spot-x",`${x*100}%`)
+                event.currentTarget.style.setProperty("--spot-y",`${y*100}%`)
+                event.currentTarget.style.setProperty("--tilt-x",`${((x-.5)*2).toFixed(2)}deg`)
+                event.currentTarget.style.setProperty("--tilt-y",`${((.5-y)*2).toFixed(2)}deg`)
+              }} onPointerLeave={event=>{event.currentTarget.style.setProperty("--tilt-x","0deg");event.currentTarget.style.setProperty("--tilt-y","0deg")}}>
+              <button className="coin-chart-trigger" onClick={()=>onSelectCoin(coin)} aria-label={`Show ${coin.name} chart, 1 minute`} aria-pressed={coin.id===selectedCoinId} aria-controls="coin-detail">
+                <div className="coin-top"><CoinImage coin={coin}/><div><h2>{coin.name}</h2><span>{coin.symbol}</span></div><span className="rank">#{coin.rank}</span></div>
                 <div className="coin-price">{usd(coin.price)}</div>
-                <div className="coin-change">
-                  <Change value={coin.change24h} />
-                  <span>24h</span>
-                </div>
-                <div className="coin-bottom">
-                  <span>Market cap <b>{usd(coin.marketCap, true)}</b></span>
-                </div>
+                <div className="coin-change"><Change value={coin.change24h}/><span>24h</span></div>
+                <div className="coin-bottom"><span>Market cap <b>{usd(coin.marketCap,true)}</b></span></div>
               </button>
-              <button
-                className="coin-research"
-                onClick={() => onResearch(`Research ${coin.name} (${coin.symbol})`)}
-                aria-label={`Research ${coin.name}`}
-              >
-                <Icon name="spark" size={16} />
-              </button>
-            </article>
-          ))}
-        </div>
-      )}
+              <button className="coin-research" onClick={()=>onResearch(`Research ${coin.name} (${coin.symbol})`)} aria-label={`Research ${coin.name}`}><Icon name="spark" size={16}/></button>
+            </article>)}
+            {!coins.length && <p className="heatmap-empty">Market data is unavailable. Refresh to try again.</p>}
+          </div>}
+      </div>
       <div className="market-foot">
         <a
           href="https://www.coingecko.com/en/api"
@@ -446,14 +428,14 @@ function MarketSection({
         >
           Data by CoinGecko <Icon name="external" size={12} />
         </a>
-        {coins.length > 5 && (
+        {coins.length > 0 && (
           <button
             className="text-button"
             onClick={() => setExpanded(!expanded)}
             aria-expanded={expanded}
             aria-controls="market-table"
           >
-            {expanded ? "Hide rankings" : "View top 10"}{" "}
+            {expanded ? "Hide rankings" : "View rankings"}{" "}
             <Icon
               name="chevron"
               size={15}
@@ -515,23 +497,30 @@ function MarketSection({
     </section>
   )
 }
-function NewsPreview({ resource, coins, now }: {
+function NewsPreview({ resource, coins, now, reviews }: {
   resource: ReturnType<typeof useResource<FeedResponse>>
   coins: MarketCoin[]
   now: number
+  reviews: NewsReviews
 }) {
   const items = [...(resource.data?.items ?? [])]
-    .sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt)).slice(0, 5)
+    .sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt)).slice(0, 3)
   return <aside className="news-preview" aria-labelledby="preview-heading">
     <header className="news-preview-head"><h2 id="preview-heading">Latest News</h2><a href="#news" aria-label="More news">More <Icon name="arrow" size={14} /></a></header>
+    <SourceQueueStatus queue={reviews.data.sourceQueue} />
     {(resource.error || resource.data?.stale) && <p className="news-preview-notice" role="status">{resource.data ? "Showing saved news · refresh unavailable" : "News unavailable"} <button onClick={resource.refresh}>Retry</button></p>}
     {!!resource.data?.unavailableSources.length && <p className="news-preview-notice">{resource.data.unavailableSources.join(", ")} unavailable</p>}
+    {reviews.error && <p className="news-reviews-notice" role="status">{reviews.error}</p>}
     <div className="news-preview-list" aria-busy={resource.loading && !resource.data}>
       {resource.loading && !resource.data ? <p className="news-preview-empty">Loading headlines…</p>
-        : items.length ? items.map((item) => <article className="news-preview-item" key={item.id}>
-          <div className="news-preview-meta"><span className={`kind-badge ${item.kind.toLowerCase()}`}>{item.kind}</span><time dateTime={item.publishedAt} title={dateLabel(item.publishedAt)}>{age(item.publishedAt, now)}</time></div>
-          <h3><a href={item.url} target="_blank" rel="noreferrer">{item.title}</a></h3>
-          <div className="news-preview-bottom"><NewsAssetBadges item={item} coins={coins} /><span className="news-preview-source">{item.source}</span></div>
+        : items.length ? items.map((item) => <article className={`news-preview-item ${newsReviewClass(item, reviews.data)}`} key={item.id}>
+          <div className="news-asset-column"><NewsAssetBadges item={item} coins={coins} /></div>
+          <div className="news-preview-copy">
+            <div className="news-preview-meta"><span className={`kind-badge ${item.kind.toLowerCase()}`}>{item.kind}</span><time dateTime={item.publishedAt} title={dateLabel(item.publishedAt)}>{age(item.publishedAt, now)}</time></div>
+            <h3><a href={item.url} target="_blank" rel="noreferrer">{item.title}</a></h3>
+            <div className="news-preview-bottom"><span className="news-preview-source">{item.source}</span></div>
+            <NewsReviewDetails item={item} reviews={reviews} />
+          </div>
         </article>) : <p className="news-preview-empty">No headlines yet.</p>}
     </div>
     <a className="news-preview-more" href="#news">View all news <Icon name="arrow" size={15} /></a>
@@ -543,12 +532,14 @@ function FeedSection({
   query,
   now,
   onResearch,
+  reviews,
 }: {
   resource: ReturnType<typeof useResource<FeedResponse>>
   coins: MarketCoin[]
   query: string
   now: number
   onResearch: (question: string) => void
+  reviews: NewsReviews
 }) {
   const [kind, setKind] = useState<"All" | FeedItem["kind"]>("All")
   const [visible, setVisible] = useState(9)
@@ -590,6 +581,7 @@ function FeedSection({
         <AutoRefresh resource={resource} period="1 min" />
         </div>
       </div>
+      <SourceQueueStatus queue={reviews.data.sourceQueue} />
       <div className="feed-toolbar">
         <div className="feed-tabs" aria-label="Filter feed">
           {(["All", "News", "Tokenomics"] as const).map((label) => (
@@ -648,95 +640,98 @@ function FeedSection({
       ) : filtered.length ? (
         <div className="news-grid">
           {filtered.slice(0, visible).map((item) => (
-            <article className="news-card" key={item.id}>
-              <div className="news-top">
-                <span className={`kind-badge ${item.kind.toLowerCase()}`}>
-                  <Icon
-                    name={item.kind === "News" ? "news" : "token"}
-                    size={13}
-                  />
-                  {item.kind}
-                </span>
-                <time
-                  dateTime={item.publishedAt}
-                  title={dateLabel(item.publishedAt)}
-                >
-                  {age(item.publishedAt, now)}
-                </time>
-              </div>
-              <h3>
-                <a href={item.url} target="_blank" rel="noreferrer">
-                  {item.title}
-                </a>
-              </h3>
-              <NewsAssetBadges item={item} coins={coins} />
-              {item.snapshot && (
-                <div className="supply-numbers">
-                  <span>
-                    Circulating
-                    <b>
-                      {number(item.snapshot.circulating)} {item.snapshot.symbol}
-                    </b>
+            <article className={`news-card ${newsReviewClass(item, reviews.data)}`} key={item.id}>
+              <div className="news-asset-column"><NewsAssetBadges item={item} coins={coins} /></div>
+              <div className="news-card-copy">
+                <div className="news-top">
+                  <span className={`kind-badge ${item.kind.toLowerCase()}`}>
+                    <Icon
+                      name={item.kind === "News" ? "news" : "token"}
+                      size={13}
+                    />
+                    {item.kind}
                   </span>
-                  <span>
-                    Max supply
-                    <b>
-                      {item.snapshot.maximum === null
-                        ? "Not specified"
-                        : `${number(item.snapshot.maximum)} ${item.snapshot.symbol}`}
-                    </b>
-                  </span>
-                </div>
-              )}
-              {item.unlock && (
-                <div className="supply-numbers">
-                  <span>
-                    Scheduled unlock
-                    <b>{dateLabel(item.unlock.date)}</b>
-                  </span>
-                  <span>
-                    Cliff release
-                    <b>{number(item.unlock.amount)} {item.unlock.symbol}</b>
-                  </span>
-                </div>
-              )}
-              <div className="news-bottom">
-                <a
-                  className="publisher"
-                  href={item.url}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <span
-                    className={`publisher-mark ${item.source.toLowerCase()}`}
+                  <time
+                    dateTime={item.publishedAt}
+                    title={dateLabel(item.publishedAt)}
                   >
-                    {item.source.startsWith("Tokenomist")
-                      ? "T"
-                      : item.source === "CoinGecko"
-                      ? "G"
-                      : item.source === "CoinDesk"
-                        ? "C"
-                        : item.source === "Decrypt"
-                          ? "D"
-                          : "CT"}
-                  </span>
-                  {item.source}
-                  <Icon name="external" size={12} />
-                </a>
-                <button
-                  className="research-link"
-                  aria-label={`Research: ${item.title}`}
-                  onClick={() =>
-                    onResearch(
-                      item.snapshot
-                        ? `Research ${item.snapshot.symbol} tokenomics`
-                        : `Research this headline: ${item.title}`,
-                    )
-                  }
-                >
-                  <Icon name="spark" size={15} />
-                  Research
-                </button>
+                    {age(item.publishedAt, now)}
+                  </time>
+                </div>
+                <h3>
+                  <a href={item.url} target="_blank" rel="noreferrer">
+                    {item.title}
+                  </a>
+                </h3>
+                <NewsReviewDetails item={item} reviews={reviews} />
+                {item.snapshot && (
+                  <div className="supply-numbers">
+                    <span>
+                      Circulating
+                      <b>
+                        {number(item.snapshot.circulating)} {item.snapshot.symbol}
+                      </b>
+                    </span>
+                    <span>
+                      Max supply
+                      <b>
+                        {item.snapshot.maximum === null
+                          ? "Not specified"
+                          : `${number(item.snapshot.maximum)} ${item.snapshot.symbol}`}
+                      </b>
+                    </span>
+                  </div>
+                )}
+                {item.unlock && (
+                  <div className="supply-numbers">
+                    <span>
+                      Scheduled unlock
+                      <b>{dateLabel(item.unlock.date)}</b>
+                    </span>
+                    <span>
+                      Cliff release
+                      <b>{number(item.unlock.amount)} {item.unlock.symbol}</b>
+                    </span>
+                  </div>
+                )}
+                <div className="news-bottom">
+                  <a
+                    className="publisher"
+                    href={item.url}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <span
+                      className={`publisher-mark ${item.source.toLowerCase()}`}
+                    >
+                      {item.source.startsWith("Tokenomist")
+                        ? "T"
+                        : item.source === "CoinGecko"
+                        ? "G"
+                        : item.source === "CoinDesk"
+                          ? "C"
+                          : item.source === "Decrypt"
+                            ? "D"
+                            : "CT"}
+                    </span>
+                    {item.source}
+                    <Icon name="external" size={12} />
+                  </a>
+                  <button
+                    className="research-link"
+                    aria-label={`Research: ${item.title}`}
+                    onClick={() =>
+                      onResearch(
+                        item.snapshot
+                          ? `Research ${item.snapshot.symbol} tokenomics`
+                          : `Research this headline: ${item.title}`,
+                      )
+                    }
+                  >
+                    <Icon name="spark" size={15} />
+                    Research
+                  </button>
+                </div>
               </div>
             </article>
           ))}
@@ -767,366 +762,6 @@ function FeedSection({
     </section>
   )
 }
-type ResearchResult = {
-  coins: MarketCoin[]
-  articles: FeedItem[]
-  notices: string[]
-  scanned: number
-  completedAt: string
-}
-type ResearchRun = {
-  id: number
-  question: string
-  result?: ResearchResult
-  error?: string
-  step: number
-}
-function ResearchPanel({
-  open,
-  onClose,
-  seed,
-}: {
-  open: boolean
-  onClose: () => void
-  seed: { id: number; question: string } | null
-}) {
-  const [input, setInput] = useState("")
-  const [runs, setRuns] = useState<ResearchRun[]>([])
-  const [busy, setBusy] = useState(false)
-  const locked = useRef(false)
-  const request = useRef<AbortController | null>(null)
-  const inputRef = useRef<HTMLTextAreaElement>(null)
-  const logRef = useRef<HTMLDivElement>(null)
-  useEffect(() => () => request.current?.abort(), [])
-  useEffect(() => {
-    if (open) inputRef.current?.focus({ preventScroll: true })
-  }, [open])
-  useEffect(() => {
-    if (seed) setInput(seed.question)
-  }, [seed])
-  useEffect(() => {
-    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight
-  }, [runs])
-  useEffect(() => {
-    if (!open) return
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose()
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [open, onClose])
-  const submit = async (question = input.trim()) => {
-    if (!question || locked.current) return
-    locked.current = true
-    setBusy(true)
-    setInput("")
-    const id = Date.now(),
-      controller = new AbortController()
-    request.current = controller
-    setRuns((current) => [
-      ...current,
-      { id, question: question.slice(0, 600), step: 0 },
-    ])
-    const step = (value: number) =>
-      setRuns((current) =>
-        current.map((run) => (run.id === id ? { ...run, step: value } : run)),
-      )
-    const paced = async <T,>(work: Promise<T>): Promise<T> => {
-      const [value] = await Promise.all([
-        work,
-        new Promise((resolve) => window.setTimeout(resolve, 350)),
-      ])
-      return value
-    }
-    try {
-      const notices: string[] = []
-      let market: MarketResponse | null = null,
-        feed: FeedResponse | null = null
-      try {
-        market = await paced(
-          readApi<MarketResponse>("/api/market", controller.signal),
-        )
-      } catch (error) {
-        if (controller.signal.aborted) throw error
-        notices.push("Market data unavailable.")
-      }
-      step(1)
-      try {
-        feed = await paced(
-          readApi<FeedResponse>("/api/feed", controller.signal),
-        )
-      } catch (error) {
-        if (controller.signal.aborted) throw error
-        notices.push("News feeds unavailable.")
-      }
-      if (!market && !feed)
-        throw new Error("Sources are unavailable. Please try again.")
-      step(2)
-      if (market?.stale || feed?.stale)
-        notices.push("Some sources are cached; check their timestamps.")
-      if (feed?.unavailableSources.length)
-        notices.push(
-          `${feed.unavailableSources.join(", ")} could not be reached.`,
-        )
-      const matches = researchMatches(question, market?.coins ?? [], [
-        ...(feed?.items ?? []),
-        ...supplySnapshots(market?.coins ?? []),
-      ])
-      if (!matches.articles.length)
-        notices.push(
-          "No matching headlines in the current publisher feeds. No event or price outcome is inferred.",
-        )
-      if (
-        matches.coins.some(
-          (coin) => Date.now() - Date.parse(coin.updatedAt) > 900_000,
-        )
-      )
-        notices.push("Market timestamps are older than 15 minutes.")
-      const result: ResearchResult = {
-        coins: matches.coins,
-        articles: matches.articles,
-        notices,
-        scanned: feed?.items.length ?? 0,
-        completedAt: new Date().toISOString(),
-      }
-      setRuns((current) =>
-        current.map((run) =>
-          run.id === id ? { ...run, step: 3, result } : run,
-        ),
-      )
-    } catch (error) {
-      if (!controller.signal.aborted)
-        setRuns((current) =>
-          current.map((run) =>
-            run.id === id
-              ? {
-                  ...run,
-                  error:
-                    error instanceof Error ? error.message : "Research failed.",
-                }
-              : run,
-          ),
-        )
-    } finally {
-      locked.current = false
-      setBusy(false)
-    }
-  }
-  if (!open) return null
-  return (
-    <aside
-      className="research-panel"
-      role="dialog"
-      aria-modal="false"
-      aria-labelledby="research-title"
-    >
-      <div className="research-panel-head">
-        <span className="assistant-mark">
-          <Icon name="spark" size={22} />
-        </span>
-        <div>
-          <h2 id="research-title">Santi Research</h2>
-          <span>Evidence, one step at a time</span>
-        </div>
-        <button
-          className="icon-button"
-          onClick={onClose}
-          aria-label="Close research"
-        >
-          <Icon name="close" />
-        </button>
-      </div>
-      <div
-        className="research-messages"
-        ref={logRef}
-        role="log"
-        aria-label="Research conversation"
-      >
-        <div className="assistant-welcome">
-          <span className="eyebrow">LET’S CONNECT THE DOTS</span>
-          <h3>What are you exploring?</h3>
-          <p>
-            I’ll collect market data and relevant headlines, with sources you
-            can inspect.
-          </p>
-          {!runs.length && (
-            <div className="suggestion-chips">
-              {[
-                "What’s happening with Bitcoin?",
-                "Token unlocks and supply",
-              ].map((question) => (
-                <button key={question} onClick={() => void submit(question)}>
-                  {question}
-                  <Icon name="arrow" size={14} />
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-        {runs.map((run) => (
-          <div className="research-run" key={run.id}>
-            <p className="user-question">{run.question}</p>
-            <div className="research-trace" aria-label="Research steps">
-              {["Market snapshot", "Publisher headlines", "Match evidence"].map(
-                (label, i) => (
-                  <div
-                    className={
-                      run.step > i
-                        ? "complete"
-                        : run.step === i && !run.error
-                          ? "working"
-                          : ""
-                    }
-                    key={label}
-                  >
-                    {run.step > i ? (
-                      <Icon name="check" size={13} />
-                    ) : run.step === i && !run.error ? (
-                      <span className="step-spinner" />
-                    ) : (
-                      <span className="step-circle" />
-                    )}
-                    <span>{label}</span>
-                  </div>
-                ),
-              )}
-            </div>
-            {run.error && (
-              <div className="research-notice" role="alert">
-                {run.error}
-              </div>
-            )}
-            {run.result && (
-              <div className="research-result">
-                <div className="result-label">
-                  <Icon name="check" size={14} />
-                  Evidence collected
-                  <span>{run.result.scanned} headlines checked</span>
-                </div>
-                {!!run.result.coins.length && (
-                  <div className="research-coins">
-                    {run.result.coins.map((coin) => (
-                      <div key={coin.id}>
-                        <div>
-                          <CoinImage coin={coin} />
-                          <b>{coin.name}</b>
-                          <small>#{coin.rank}</small>
-                        </div>
-                        <strong>{usd(coin.price)}</strong>
-                        <span>
-                          Market cap {usd(coin.marketCap, true)} ·{" "}
-                          <Change value={coin.change24h} />
-                        </span>
-                        <time dateTime={coin.updatedAt}>
-                          {dateLabel(coin.updatedAt)}
-                        </time>
-                        <div className="research-supply">
-                          <span>
-                            Circulating{" "}
-                            {coin.circulatingSupply === null
-                              ? "—"
-                              : number(coin.circulatingSupply)}{" "}
-                            {coin.symbol}
-                          </span>
-                          {coin.maxSupply !== null && (
-                            <span>Max {number(coin.maxSupply)}</span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {!!run.result.articles.length && (
-                  <div className="research-sources">
-                    <h4>
-                      Related source updates
-                    </h4>
-                    {run.result.articles.map((article, i) => (
-                      <a
-                        href={article.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        key={article.id}
-                      >
-                        <span>{i + 1}</span>
-                        <div>
-                          <b>{article.title}</b>
-                          <small>
-                            {article.source} · {article.kind} ·{" "}
-                            {dateLabel(article.publishedAt)}
-                          </small>
-                          {article.unlock && (
-                            <small>
-                              Unlock · {dateLabel(article.unlock.date)} ·{" "}
-                              {number(article.unlock.amount)} {article.unlock.symbol}
-                            </small>
-                          )}
-                        </div>
-                        <Icon name="external" size={13} />
-                      </a>
-                    ))}
-                  </div>
-                )}
-                {run.result.notices.map((notice) => (
-                  <p className="research-notice" key={notice}>
-                    {notice}
-                  </p>
-                ))}
-                <p className="research-boundary">
-                  Source matching only. Full articles have not been read; no AI interpretation or price prediction is generated.
-                </p>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-      <form
-        className="research-composer"
-        onSubmit={(event) => {
-          event.preventDefault()
-          void submit()
-        }}
-      >
-        <label className="sr-only" htmlFor="research-question">
-          Ask Santi Research
-        </label>
-        <div>
-          <textarea
-            id="research-question"
-            ref={inputRef}
-            value={input}
-            maxLength={600}
-            onChange={(event) => setInput(event.target.value)}
-            onKeyDown={(event) => {
-              if (
-                event.key === "Enter" &&
-                !event.shiftKey &&
-                !event.nativeEvent.isComposing
-              ) {
-                event.preventDefault()
-                void submit()
-              }
-            }}
-            placeholder="Ask about a coin or headline…"
-            rows={2}
-          />
-          <button
-            type="submit"
-            disabled={busy || !input.trim()}
-            aria-label="Start research"
-          >
-            <Icon name="send" size={18} />
-          </button>
-        </div>
-        <small>
-          {busy
-            ? "Collecting sources… You can keep browsing."
-            : "Source scan · AI model not connected"}
-        </small>
-      </form>
-    </aside>
-  )
-}
 export default function Workspace() {
   const market = useResource<MarketResponse>("/api/market", 60_000)
   const feed = useResource<FeedResponse>("/api/feed", 60_000)
@@ -1134,6 +769,7 @@ export default function Workspace() {
   const [now, setNow] = useState(Date.now())
   const [researchOpen, setResearchOpen] = useState(false)
   const [selectedAsset, setSelectedAsset] = useState<MarketCoin | null>(null)
+  const [impactActivity, setImpactActivity] = useState<ImpactActivity | null>(null)
   const [route, setRoute] = useState(() => window.location.hash)
   const backgroundRoute = useRef(route.startsWith("#analysis/") ? "#market" : route)
   const previousRoute = useRef(route)
@@ -1158,6 +794,7 @@ export default function Workspace() {
     else if (["#market", "#feed"].includes(route)) document.getElementById(route.slice(1))?.scrollIntoView()
   }, [route, analysisId, newsPage])
   const selectedCoin = market.data?.coins.find((coin) => coin.id === (selectedAsset?.id ?? "bitcoin")) ?? selectedAsset ?? market.data?.coins[0] ?? null
+  const newsReviews = useNewsReviews(selectedCoin?.id)
   const openAnalysis = (coin: MarketCoin) => {
     setSelectedAsset(coin)
     setResearchOpen(false)
@@ -1181,6 +818,7 @@ export default function Workspace() {
   }, [])
   return (
     <div className="workspace">
+      <FinanceBackdrop />
       <a className="skip-link" href="#market">
         Skip to market
       </a>
@@ -1226,10 +864,10 @@ export default function Workspace() {
         <kbd>↗</kbd>
       </button>
       <main className="workspace-content">
-        {newsPage ? <div className="news-page"><a className="news-back" href="#market">← Back to Market</a><FeedSection resource={feed} coins={market.data?.coins ?? []} query={query} now={now} onResearch={openResearch} /></div> : <>
-        <MarketSection resource={market} onResearch={openResearch} onSelectCoin={setSelectedAsset} selectedCoinId={selectedCoin?.id} />
-        {selectedCoin ? <CoinChart key={selectedCoin.id} coin={selectedCoin} feed={feed} now={now} marketStale={Boolean(market.error) || market.offline || Boolean(market.data?.stale)} onAnalyze={() => openAnalysis(selectedCoin)} news={<NewsPreview resource={feed} coins={market.data?.coins ?? []} now={now} />} />
-          : <NewsPreview resource={feed} coins={market.data?.coins ?? []} now={now} />}
+        {newsPage ? <div className="news-page"><a className="news-back" href="#market">← Back to Market</a>{newsReviews.error && <p className="news-reviews-notice" role="status">{newsReviews.error}</p>}<FeedSection resource={feed} coins={market.data?.coins ?? []} query={query} now={now} onResearch={openResearch} reviews={newsReviews} /></div> : <>
+        <MarketSection resource={market} onResearch={openResearch} onSelectCoin={setSelectedAsset} selectedCoinId={selectedCoin?.id} pipeline={<AgentPipeline feed={{ loading: feed.loading, offline: feed.offline, error: feed.error, checkedAt: feed.checkedAt, count: feed.data?.items.length ?? 0, stale: Boolean(feed.data?.stale) }} queue={newsReviews.data.sourceQueue} sourceError={newsReviews.loadError} impact={impactActivity?.coinId === selectedCoin?.id ? impactActivity : null} symbol={selectedCoin?.symbol ?? "asset"} />} />
+        {selectedCoin ? <CoinChart key={selectedCoin.id} coin={selectedCoin} feed={feed} now={now} marketStale={Boolean(market.error) || market.offline || Boolean(market.data?.stale)} onAnalyze={() => openAnalysis(selectedCoin)} onReviewActivity={setImpactActivity} news={<NewsPreview resource={feed} coins={market.data?.coins ?? []} now={now} reviews={newsReviews} />} />
+          : <NewsPreview resource={feed} coins={market.data?.coins ?? []} now={now} reviews={newsReviews} />}
         </>}
       </main>
       <footer className="site-footer">

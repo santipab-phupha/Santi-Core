@@ -60,3 +60,7 @@
 .impact-review-status button { border: 0; background: #f0e9ff; color: #7139c7; border-radius: 8px; padding: 3px 9px; cursor: pointer; font: inherit; }
 .impact-review-running { color: #803de4; }
 .impact-evidence blockquote { margin: 8px 0; padding: 8px 12px; border-left: 2px solid #d3b8fa; color: #736485; font-size: 12px; line-height: 1.6; }
+.impact-source-references { display: flex; flex-wrap: wrap; gap: 5px 10px; margin-top: 8px; font-size: 11px; color: var(--muted); }
+.impact-source-references a { color: var(--purple); }
+.impact-source-references a:hover { text-decoration: underline; }
+:root .impact-evidence-row > .impact-source-missing { color: var(--negative); }

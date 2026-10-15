@@ -1,236 +1,243 @@
 # Santi-Core
 
-A single-page crypto workspace: market-cap leaders, a combined News / Tokenomics feed, a floating research panel, and an ElevenLabs Bull/Bear analysis and audio dialog.
+**A Multi-Agent Platform for Crypto News Research and Analysis.**
 
-The selected asset defaults to Bitcoin with a one-minute chart. Below Overviews,
-the desktop workspace places the chart beside a compact latest-news column.
-More opens `#news`, a separate view of the complete loaded feed with search,
-News / Tokenomics filters and pagination. Smaller screens stack chart and news.
-News asset badges use explicit headline/topic mentions or structured tokenomics
-symbols, with CoinGecko logos where available. Multiple mentioned assets get
-multiple badges; other stories show Market / Other. Assets outside the loaded
-market use their structured ticker with a fallback mark when a logo is unavailable.
+Presented by Team **สันติภาพ** at **U-Hackathon 2026**.
 
-## Run locally
+[Live website](https://santi-core.vercel.app/) · [GitHub repository](https://github.com/santipab-phupha/Santi-Core)
 
-Use Node.js 24 and pnpm. In this directory:
+Santi-Core brings market prices, crypto news, tokenomics, source checks and AI research into one dark-themed workspace. Bitcoin is selected by default, with a one-minute TradingView chart.
+
+## What you can do
+
+- Switch between the original asset cards and a market-cap heatmap of the top 50 assets.
+- Follow News and Tokenomics in one feed, with asset logos and original-source links.
+- Watch the connected **News feed → Source check → Impact AI** status circles. Their activity reflects real requests and review progress.
+- Read source-supported Positive / Negative / Inconclusive impact labels for the selected asset.
+- Open **Report** for the positive and negative evidence columns; **Close** hides it.
+- Press **Listen** to open an audio popup and hear the report through ElevenLabs. Closing it stops playback.
+- Open **Bear/Bull** to see both agents research and respond to every opposing claim. Bull uses green frames; Bear uses red frames.
+- Use **Download report** under All arguments to save a complete HTML report with claims, replies, caveats and source links. It opens in a browser, including offline, and can be printed using the browser's Print command.
+- Ask follow-up questions in the floating **Research** chat.
+- See an eight-second opening animation, with Skip intro and Escape support.
+
+## 1. Install and start
+
+### Requirements
+
+- **Node.js 24.x**
+- **pnpm 10.x** (`npm install --global pnpm@10` if it is not installed)
+- Git, if cloning the repository
 
 ```sh
+git clone https://github.com/santipab-phupha/Santi-Core.git
+cd Santi-Core
 pnpm --ignore-workspace install --frozen-lockfile
+```
+
+Create your local configuration from the example. On Windows PowerShell:
+
+```powershell
+Copy-Item .local.env.example .local.env
+```
+
+On macOS or Linux:
+
+```sh
+cp .local.env.example .local.env
+```
+
+Do this only when creating a new configuration; do not overwrite an existing file containing your keys. Open `.local.env` in your editor and fill in the services you want to enable. **Use this exact filename:** the server reads `.local.env`, not `.env.local`.
+
+Start the app:
+
+```sh
 pnpm --ignore-workspace run dev
 ```
 
-Open http://localhost:3000. `--ignore-workspace` isolates this downloaded project from the separate pnpm workspace in its parent directory.
+Open **http://localhost:3000**. The port is strict: if it is occupied, stop the other process or explicitly choose a different `PORT`.
 
-## Data and refresh
+The market and public RSS feed work without AI credentials. The AI and audio features need the configuration below. No OpenAI key, CoinGecko key, TradingView key, MongoDB account or Supabase account is required by the current implementation.
 
-- CoinGecko provides the top 10 assets, sorted by market capitalization in USD. The client refreshes every minute; provider timestamps are shown.
-- CoinDesk, Cointelegraph, Decrypt and the official Tokenomist Research RSS provide publisher headlines, sorted by publication time. The client and shared feed cache refresh every minute. New items enter Latest News and the full News page automatically, without a page reload. Tokenomist Research headlines are labelled Tokenomics and retain their original publication dates and links.
-- Refreshes run automatically while the page and local server are running. Requests do not overlap; failed requests keep existing data and retry on the next cycle. Coming back to an overdue tab or reconnecting to the internet triggers a check immediately. Browsers may delay timers in background/suspended tabs. The UI distinguishes the last successful check from the provider's data timestamp; it does not imply tick-by-tick streaming. Closing the website stops client refreshes.
-- Tokenomics combines CoinGecko supply snapshots, related reporting and up to 25 upcoming cliff unlocks from Tokenomist when configured. Schedule update dates and future unlock dates are shown separately. Tokenomist is cached for one hour across all feed/research refreshes, with a five-minute retry delay on failure; plan coverage can limit the returned dataset.
-- The public Tokenomist Research RSS (`https://insights.unlocks.app/rss/`) does not use the authenticated unlock API quota. It covers published research articles, not every entry in the interactive Tokenomist Updates dashboard. Polling more often does not change the publisher's publication schedule. The unlock API cache is independent of the one-minute RSS polling.
-- Server requests have timeouts, shared in-flight requests and short caches. Failed refreshes preserve available data with a stale label; unavailable sources are identified. No fabricated fallback prices or articles are used.
-- Research runs a source scan against these datasets and provides inspectable links. It does not call an LLM, read full articles, or generate financial predictions. Questions remain in browser memory.
-- The analysis dialog narrates completed Bull/Bear reports through ElevenLabs. Two different voices take turns presenting claims and the opponent's actual replies; the transcript retains source links.
+## 2. Connect ElevenLabs
 
-The API runs in Vite locally and in the shared `api/workspace.ts` Node.js function on Vercel. `vercel.json` routes `/api/*` to that function. Static-file-only hosting cannot serve the API. To check a production build locally, run `pnpm --ignore-workspace run build`, then `pnpm --ignore-workspace run preview` after stopping the development server.
+There are **four hosted AI agents**: Bull, Bear, Impact Analyst and Research. The original-link reference checker is an HTTP/text worker, not another LLM agent. Audio uses ElevenLabs TTS, not an additional research agent.
 
-## Tokenomist credentials
+### Add your keys
 
-The server-only API credential belongs in `.local.env` as `TOKENOMIST_API_KEY=...`.
-This exact filename is explicitly ignored and denied by the development file server.
-`server/local-env.ts` reads it without exposing it through `import.meta.env`.
-An empty value disables Tokenomist. The server sends the key only to
-`https://api.tokenomist.ai` in the `x-api-key` header, with redirects disabled.
-`/api/tokenomist/status` reports configuration and the last connection state without
-returning credentials or account quota details. A valid key and sufficient plan
-credits are required. Never use a `VITE_` prefix for the key.
-
-## Bear / Bull analysis with ElevenLabs Agents
-
-**Analysis by Bear/Bull** opens the **Listen to both sides** modal over the current
-market or news workspace. The modal shows a rotating Bull/Bear loading animation
-only while analysis is checking or running, then displays the report and audio
-player. Close, Escape and backdrop clicks dismiss it, cancel pending work and
-return focus to the opener. The background stays mounted and cannot receive
-input while the modal is open. Reduced-motion preferences disable animation.
-Legacy `#analysis/<asset>` URLs open the same modal. Analysis is backed by two hosted,
-authenticated ElevenLabs Agents. Both use `gemini-2.5-flash` by default, with
-model cascading disabled. The server checks the actual hosted model, disabled
-backup, empty first message, and text-only mode before each conversation.
-
-Set these server-only values in `.local.env`:
+Put these values in `.local.env`:
 
 ```dotenv
-ELEVENLABS_AGENTS_API_KEY=
+ELEVENLABS_AGENTS_API_KEY=your_agents_key
 ELEVENLABS_AGENTS_MODEL=gemini-2.5-flash
-ELEVENLABS_BULL_AGENT_ID=
-ELEVENLABS_BEAR_AGENT_ID=
+ELEVENLABS_API_KEY=your_tts_key
+ELEVENLABS_MODEL=eleven_v3
 ```
 
-The Agents key is separate from the voice/TTS key. It needs Agents access to
-create/read agents and start authenticated conversations. After adding it, run
-`node --experimental-strip-types scripts/setup-eleven-agents.mts` to create
-**Santi-Core Bull** and **Santi-Core Bear** and save their IDs. Setup resumes
-without duplicating saved IDs; existing agents with a different configuration
-are not overwritten. Only Gemini model IDs are accepted by local configuration.
-No client keys, signed conversation URLs, or account credentials are exposed.
-The previous analysis provider and its local credentials have been removed.
+The Agents key needs access to read/create agents and start authenticated conversations. The TTS key needs voice-read and text-to-speech access. These are separate settings, even if your account permits one key to serve both purposes. Never put credentials in source files or names beginning with `VITE_`.
 
-Each explicit analysis starts at most four text-only conversations: independent
-research openings, followed by one response to every opposing claim. Agents can
-read up to three registered publisher URLs per research opening. The server
-retrieves bounded public article excerpts (up to 8,000 characters each), sharing
-reads and reporting unavailable content. It does not bypass paywalls or provide
-a general web-search service. Research covers the current news/Tokenomist feed
-and market snapshot; this limitation is shown with the report. Article access
-can fail, in which case only the headline or structured event is available.
+### Create or connect the agents
 
-Agents submit structured reports through client tools handled on the local
-server. Arbitrary URLs, unexpected tools, unverifiable citations, incomplete
-replies, disconnected sessions, and partial results cannot become completed
-reports. Source text and opponent statements are untrusted evidence. Every
-opponent claim must receive exactly one reply. Provenance checks do not prove
-a source or model interpretation is correct. Both roles use the same model;
-agreement is not independent verification. No winner or price probability is
-produced. Token counts are not displayed because the conversation transport
-does not provide reliable token accounting here.
+After saving the Agents key, run these commands from the project directory:
 
-Progress streams over `/api/analysis` as NDJSON. Reports are cached locally for
-five minutes with their original timestamp, scoped by credential fingerprint,
-model, agent IDs and asset. Only one analysis runs at a time, with a 15-second
-cooldown. There are no automatic paid retries or background AI polling.
-Closing the dialog or pressing Stop closes pending sessions; work already
-processed may still be charged by ElevenLabs. Each conversation has a two-minute
-timeout. Conversation storage follows the ElevenLabs workspace settings.
+```sh
+node --experimental-strip-types scripts/setup-eleven-agents.mts
+node --experimental-strip-types scripts/setup-local-impact-analyst.mts
+node --experimental-strip-types scripts/setup-local-research-agent.mts
+```
 
-The floating **Research** panel remains a local source scan with no AI calls.
-These routes require the Vite development/preview server or equivalent deployed
-server routes.
+The scripts create or reuse the named hosted agents and save their IDs into `.local.env`. Bull/Bear setup resumes from saved IDs. The dedicated analyst and Research scripts retain “local” in their filenames and agent names; the saved hosted IDs can also be configured on Vercel. They do not deploy the website or change Vercel settings for you.
 
-## ElevenLabs Bull / Bear voices
-
-Set server-only values in `.local.env`:
+If you already have compatible agents, enter all four IDs directly instead:
 
 ```dotenv
-ELEVENLABS_API_KEY=
-ELEVENLABS_MODEL=eleven_v3
+ELEVENLABS_BULL_AGENT_ID=agent_...
+ELEVENLABS_BEAR_AGENT_ID=agent_...
+ELEVENLABS_IMPACT_AGENT_ID=agent_...
+ELEVENLABS_RESEARCH_AGENT_ID=agent_...
+```
+
+Hosted settings must match the application: authenticated English text-only Gemini agents, empty first messages, disabled backup models and the expected submission tools. The Impact Analyst's thinking budget must match `IMPACT_ANALYSIS_THINKING_BUDGET` (default 1024). Changing an environment value alone does not update the hosted agent.
+
+The dedicated setup scripts accept `--update-local` to update only their corresponding named agent. If you reuse that hosted ID in production, changing it also affects production conversations. Bull/Bear setup does not silently overwrite incompatible existing agents.
+
+Optional voice IDs:
+
+```dotenv
 ELEVENLABS_BULL_VOICE_ID=
 ELEVENLABS_BEAR_VOICE_ID=
 ```
 
-Use an API key with text-to-speech generation and voice-read access. Hosted
-ElevenLabs Agents perform the source analysis and debate; ElevenLabs TTS voice
-profiles narrate their completed reports. No voice cloning is performed. Empty voice IDs select two available account voices; the player
-also lets the user pick two voices and preview them with fixed short English scripts.
-The key stays on the server, sent only to `https://api.elevenlabs.io` via
-`xi-api-key`, with redirects disabled. Configuration is read on each request.
+Empty values choose available account voices. Bull/Bear narration requires two distinct voices; report narration uses the default Bull voice. Listen starts report audio immediately after preparation; the debate player generates audio only when Play or Preview is pressed. A browser that blocks playback shows a Play button.
 
-Audio is generated only after pressing play or a voice-preview button. Play
-continues through the report one clip at a time; pause, stop and next are available.
-Only finished, server-registered reports can become speech; clients cannot send
-arbitrary text. Every claim, caveat and opposing response is included, split into
-at most 1,000 Unicode code points per clip. No additional LLM rewrite is used.
-The transcript displays evidence links; URLs are not read aloud. Sources and AI
-interpretations can still be wrong. Wave animations reflect HTML audio playback,
-not the research process or the audio's measured amplitude.
+## 3. Connect Tokenomist (optional)
 
-The player shows total script characters. Generation uses ElevenLabs credits;
-there is no background TTS polling, automatic retry or pre-generation. Leaving
-the player or pressing stop aborts pending generation, though work already
-processed by ElevenLabs may still be charged. Speech requests time out after
-90 seconds. One generation is allowed at a time; other requests receive a retry
-message. Same-origin JSON guards block cross-site spending from a browser.
-
-Voice lists are cached for ten minutes. Reports carry a server-signed transcript valid for one hour, so audio requests work across Vercel instances and cold starts. The signature uses the server TTS credential with domain separation; rotating that credential invalidates old transcripts. Clients cannot change signed text. The browser sends the transcript in POST bodies, never in URLs. In-memory caches hold ten reports and forty clips / 48 MB per instance; a restart clears cached clips. Replaying a clip still in cache avoids a new generation request;
-expired or evicted audio is generated again when requested. The dialog keeps
-its report while open; reopening uses the five-minute server analysis cache when available. Create an analysis before using
-full playback; voice previews work independently after adding the ElevenLabs key.
-
-Routes: `GET /api/audio/config`, `GET /api/audio/reports/:reportId`,
-`POST /api/audio/speech` and `POST /api/audio/preview`. Both the development
-and preview server register these routes; static hosting alone cannot serve them.
-
-## Checks
-
-```sh
-pnpm --ignore-workspace exec tsc --noEmit
-pnpm --ignore-workspace run build
-pnpm --ignore-workspace run check:server
-node --experimental-strip-types --test server/*.test.ts src/*.test.ts
+```dotenv
+TOKENOMIST_API_KEY=your_tokenomist_key
 ```
 
-The interface, impact explanations, agent reports and audio narration use English.
-Thai asset aliases are retained only for matching user searches.
+This enables authenticated upcoming cliff-unlock data, subject to your plan. Without a key, public news and Tokenomist Research RSS still work. The RSS feed is `https://insights.unlocks.app/rss/`; it is not the full interactive Tokenomist Updates dashboard and uses no authenticated unlock-API quota.
 
+The unlock API is cached for one hour, separately from one-minute news refreshes. `/api/tokenomist/status` shows configuration and connection status without revealing the key.
 
-## Deploy to Vercel
+## 4. Environment variable reference
 
-Import this GitHub repository into Vercel using the Vite preset, Node.js 24,
-`pnpm build`, and output directory `dist`. The shared API function allows up to
-300 seconds for streamed analysis. Set all names from `.local.env.example` in
-the project's production and preview Environment Variables. Store API keys as
-secrets; never prefix credentials with `VITE_`, commit `.local.env`, or paste
-credentials into source. The local file is optional on Vercel: process environment
-values take precedence. No OpenAI credentials are needed.
+All variables below are **server-only**. On Vercel, process environment variables take precedence over the local file.
 
-The application is public, including Bear/Bull analysis and voice generation.
-Analysis and audio consume the configured ElevenLabs account's credits.
-Concurrency limits, the five-minute analysis cache, hourly unlock cache and clip
-caches are per running instance, not global quotas. Cold starts or scaling can
-cause additional provider requests. News RSS polling is independent of the
-Tokenomist authenticated unlock API. No scheduled background worker is installed;
-open clients request updates each minute. Vercel CDN caches successful public
-market/feed responses for up to 60 seconds; paid analysis and audio are not
-publicly cached. `POST /api/audio/manifest` verifies the signed transcript.
+| Variable | Needed for | Default / notes |
+| --- | --- | --- |
+| `ELEVENLABS_AGENTS_API_KEY` | All AI features | Required for agent conversations |
+| `ELEVENLABS_AGENTS_MODEL` | All AI features | `gemini-2.5-flash`; must match hosted agents |
+| `ELEVENLABS_BULL_AGENT_ID` | Bear/Bull | Hosted Bull agent ID |
+| `ELEVENLABS_BEAR_AGENT_ID` | Bear/Bull | Hosted Bear agent ID |
+| `ELEVENLABS_IMPACT_AGENT_ID` | Automatic impact review | Dedicated impact-only analyst ID |
+| `ELEVENLABS_RESEARCH_AGENT_ID` | Research chat | Dedicated Research agent ID |
+| `ELEVENLABS_API_KEY` | Report and debate audio | TTS generation and voice-read access |
+| `ELEVENLABS_MODEL` | Audio | `eleven_v3` |
+| `ELEVENLABS_BULL_VOICE_ID` | Audio | Optional account voice ID |
+| `ELEVENLABS_BEAR_VOICE_ID` | Debate audio | Optional distinct account voice ID |
+| `TOKENOMIST_API_KEY` | Upcoming unlocks | Optional; RSS is independent |
+| `IMPACT_REVIEW_CONCURRENCY` | Impact workers | `3`; range 1–3 per process |
+| `IMPACT_REVIEW_BATCH_SIZE` | News items per impact task | `4`; range 1–8 |
+| `IMPACT_ANALYSIS_THINKING_BUDGET` | Impact reasoning | `1024`; range 128–8192; match hosted settings |
+| `REFERENCE_CHECK_CONCURRENCY` | Original-link checks | `6`; range 1–12 |
+| `REFERENCE_CHECK_TIMEOUT_MS` | Original-link checks | `6000`; range 1000–10000 ms |
+| `LOCAL_SOURCE_REVIEW_ENABLED` | Local full-feed source queue | `false`; opt in with `true`; always disabled on Vercel |
 
-To validate a deployment, check market/feed responses, analysis configuration,
-then run one analysis and play a segment. Never put provider keys in a browser
-request. GitHub pushes to the connected production branch deploy automatically.
+No additional key is needed for the current CoinGecko public endpoint, the TradingView embed or the publisher RSS feeds. Provider availability and public rate limits still apply.
 
+## 5. Deploy to Vercel
 
-## Agent-reviewed Overviews
+1. Push the complete application to GitHub, including `server/`, `api/`, `scripts/` and the lockfile. Do not upload only `dist/`.
+2. Import the repository into the intended Vercel team and project. For this repository, the existing project is **santi-core**.
+3. Use these build settings:
 
-The Overviews bar counts only completed asset-specific classifications from
-Santi-Core Impact Reviewer, a separate authenticated ElevenLabs text-only Agent
-using the configured Gemini model with model fallback disabled. Create it once
-with `node --experimental-strip-types scripts/setup-impact-agent.mts` using the
-existing server Agents credential. The server discovers the single exact agent
-name; no new client credential or production environment variable is needed.
-Use `--update` only when intentionally updating this app's existing reviewer.
+   | Setting | Value |
+   | --- | --- |
+   | Framework | Vite |
+   | Node.js | 24.x |
+   | Install | `pnpm install --frozen-lockfile` |
+   | Build | `pnpm build` |
+   | Output | `dist` |
 
-`POST /api/impact/review` accepts only a loaded market coin ID. The server builds
-the bounded evidence list, retrieves public publisher excerpts where available,
-and sends only missing classifications to the Agent in one batch. Every supplied
-item must receive exactly one valid label and an exact quote from the supplied
-headline, excerpt or structured data. Invented quotes, duplicate/unknown IDs and
-incomplete submissions fail the review rather than manufacturing a verdict.
-The model can classify a relevant macro event indirectly for a selected asset,
-but price-only headlines without an identified causal driver remain Context.
+4. In **Project → Settings → Environment Variables**, add the keys and all four Agent IDs from the table above. Select **Production** for the live website and **Preview** if preview deployments should use those services too. Store API keys as secrets. Never upload `.local.env`.
+5. Deploy or redeploy **after saving the variables**. Changes apply to new deployments, not an already running build. With the Git integration, pushes to the configured production branch deploy automatically.
+6. Check the routes and user flows below before considering the deployment verified.
 
-Positive, Negative and genuinely mixed/insufficient Inconclusive items enter the
-bar. Neutral background and supply snapshots are shown under Context. Pending,
-failed and stale reviews are excluded, never counted as Inconclusive. Each signal
-shows the reason, source, actual evidence basis and supporting quotation. A
-headline-only assessment does not claim the full article was read. The ratios
-are shares of reviewed signals, not price probabilities or independent votes.
-The Bear/Bull debate remains separate and is not anchored to these labels.
+`vercel.json` rewrites `/api/*` to the shared Node.js function `api/workspace.ts`, with cancellation support and a 300-second maximum duration. Static-only hosting cannot run the API. Keep TypeScript's `rewriteRelativeImportExtensions` enabled so compiled server imports resolve correctly.
 
-Results are keyed by asset, source content, model, credential fingerprint and
-classifier version. On Vercel the app uses namespaced Runtime Cache, shared
-between instances in the same region and environment and persistent across
-redeploys until expiry/eviction. Directional and Neutral labels last six hours;
-Inconclusive labels last 30 minutes. Local development uses a bounded in-memory
-cache. The client checks new/changed evidence and rechecks cache on a 30-minute
-boundary; it does not automatically retry failed paid tasks. Retry is explicit.
-One job runs per instance, a short shared lease reduces duplicate requests, and
-failures have a one-minute shared cooldown. Runtime Cache is not a transactional
-lock: simultaneous cold starts or separate regions can still duplicate work.
-It is not durable MongoDB storage or an exactly-once billing guarantee.
+### What behaves differently in production
 
-Reviewing new items consumes ElevenLabs credits. Runtime Cache uses the existing
-Vercel account's cache allowance/usage. If the shared cache is unavailable, the
-server refuses to start a new paid review. No background scheduler or automatic
-full-market classification is installed; only the selected asset is reviewed.
+- The optional full-feed source-check loop runs only in the local Vite server. Setting `LOCAL_SOURCE_REVIEW_ENABLED=true` on Vercel does **not** create a scheduled worker. Production checks sources on demand through the research/review flows.
+- Open clients request market/news updates every minute. Vercel CDN caching and per-instance server caching can reuse responses; this is not a centrally scheduled ingestion service.
+- Impact/source results use Vercel Runtime Cache, scoped by region/environment. No database environment variables need to be added for this cache. It is ephemeral and does not provide a transactional global lock.
+- Debate, Research conversation and audio-clip caches are per instance. Cold starts, scaling and expiration can cause fresh provider requests. They are not account-wide spending limits.
 
-When another visitor is already reviewing the same asset, the UI polls `GET /api/impact/review?coinId=...` for cached results only. GET never starts a paid task. Completed partial labels can appear while the remaining items are pending. Closing or switching assets cancels the wait.
+## 6. Verify the installation or deployment
+
+Run the local checks:
+
+```sh
+pnpm --ignore-workspace run typecheck
+pnpm --ignore-workspace run test
+pnpm --ignore-workspace run build
+pnpm --ignore-workspace run check:server
+```
+
+`check:server` compiles and starts the emitted JavaScript API to catch deployment import problems that Vite's development loader can hide.
+
+Useful read-only checks (replace the host with localhost or your deployment):
+
+| Route | Expected result |
+| --- | --- |
+| `/api/market` | JSON with real assets and freshness information |
+| `/api/feed` | JSON with publisher items and any unavailable sources |
+| `/api/tokenomist/status` | Configuration / last connection state, never the key |
+| `/api/analysis/config` | `configured: true` when Bull/Bear settings exist |
+| `/api/research/config` | `configured: true` when Research settings exist |
+| `/api/audio/config` | Available account voices and audio configuration |
+| `/api/impact/news` | Cached source/impact states; no new model inference |
+| `/api/impact/review?coinId=bitcoin` | Cached review labels; no new model inference |
+
+Configuration checks alone do not prove that a provider accepts conversations. For end-to-end verification, load the page, select an asset, inspect the completed review and references, open Report, play a report segment, run Bear/Bull and ask one Research question. These actions may use ElevenLabs credits. Downloading a completed report does not run another analysis.
+
+### Troubleshooting
+
+| Symptom | What to check |
+| --- | --- |
+| Port 3000 is occupied | Keep one development server running, or explicitly set another `PORT` |
+| AI is not configured | Check the Agents key and the Agent ID for the failing feature |
+| Impact review rejects hosted settings | Confirm the dedicated impact-only agent, model, tools and thinking budget; do not reuse the old combined source/impact agent |
+| Research chat is unavailable | Add `ELEVENLABS_RESEARCH_AGENT_ID`, then redeploy |
+| Audio is unavailable | Check the separate TTS key, voice-read permission and available voices |
+| Provider quota or 429 errors | Check the relevant provider plan/credits and retry explicitly; no automatic paid retry is performed |
+| `/api/*` is missing after deployment | Deploy the full repository and preserve the rewrites in `vercel.json` |
+| Server import error | Run `check:server`; preserve explicit server imports and TypeScript import-extension rewriting |
+| Full-feed source checks do not run on Vercel | Expected: the persistent local loop is disabled there; production needs a separate scheduled ingestion design for that behavior |
+| A story remains Pending | Not all loaded news is automatically analyzed for every asset; use its review action or wait until it enters the bounded asset review |
+
+## Data, review and caching behavior
+
+CoinGecko supplies the top 50 assets by market cap in USD. News comes from CoinDesk, Cointelegraph, Decrypt and Tokenomist Research RSS; optional Tokenomist API data adds up to 25 upcoming cliff unlocks. Provider timestamps and source links are retained. Missing data is not replaced with fabricated prices or headlines.
+
+The source worker opens the original publisher link and matches readable headline/article text. A successful HTTP response alone is insufficient. Teal **Source checked** means text correspondence; green **Approved** additionally requires completed impact analysis. Unsupported stories remain visible as **No evidence / Inconclusive**. Text correspondence is not factual certification or independent corroboration.
+
+Automatic impact review is bounded to the selected asset's eligible news and the latest preview items, using recent news within 72 hours and upcoming unlocks. It does not analyze every asset or the entire feed on a paid background schedule. Supported neutral context and supply snapshots stay outside the directional bar. The bar shows evidence shares, not price probabilities.
+
+Successful source checks and directional/neutral impact labels are cached for six hours; unsupported or Inconclusive results for thirty minutes. Cache keys include the relevant source content and, for impact, asset/model/agent settings. Local results persist in `.cache/impact-reviews.json`. The optional local full-feed source queue uses HTTP only, even when no visitor is open.
+
+Bear/Bull is a separate on-demand debate, normally four conversations, with a five-minute per-instance report cache. Research starts on explicit questions and carries bounded recent chat context. Report reads completed review results without repeating model inference. TTS clips are generated one at a time and cached per instance for up to one hour; signed report transcripts allow playback across instances. Identical clips may need regeneration after expiry, eviction or a cold start.
+
+The public deployment lets visitors use AI and audio with the configured account's credits. The current concurrency controls and caches reduce repeated work but are not a durable global quota. Closing a task cancels pending work; provider work already processed may still be charged.
+
+## Project layout
+
+```text
+src/       React interface, charts, reports, audio and status widgets
+server/    Provider clients, validation, source checks, AI orchestration and caching
+api/       Vercel function entry point
+scripts/   Agent setup and compiled-server verification
+public/    Brand SVGs and static assets
+```
+
+`.local.env`, `.env*`, caches, build output and dependencies are excluded from Git. Keep real API keys out of commits, screenshots, issue reports and client bundles.

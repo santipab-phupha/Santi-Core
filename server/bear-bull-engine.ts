@@ -104,7 +104,7 @@ export function buildDebateContext(
     feedAt: feed.fetchedAt,
     marketStale: !analysis.marketCurrent,
     feedStale: !analysis.feedCurrent,
-    gaps: analysis.gaps,
+    gaps: [...analysis.gaps, ...(feed.sourceCoverage?.excluded ? [`${feed.sourceCoverage.excluded} feed items were excluded because original-source checking did not pass. Only source-checked news is supplied to the agents.`] : [])],
     unavailableSources: feed.unavailableSources,
     evidence: relevant,
     sources,
