@@ -23,7 +23,8 @@ export function createImpactApi(options: {
       let body: { coinId?: unknown }
       if (req.method === "GET") {
         const query = new URL(req.url ?? "", "http://internal").searchParams
-        if ([...query.keys()].some((key) => key !== "coinId")) throw new ReviewError("Only coinId is accepted.", 400)
+        // Rewrites may add platform parameters. GET only reads cached labels;
+        // only the separately validated coinId influences the lookup.
         body = { coinId: query.get("coinId") }
       } else {
         if (!req.headers["content-type"]?.startsWith("application/json")) throw new ReviewError("A JSON request is required.", 415)

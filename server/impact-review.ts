@@ -101,7 +101,8 @@ export function createImpactReviewer(options: {
     for (const row of rows) {
       signal.throwIfAborted()
       const value = await store.get(itemKey(row)) as ImpactClassification | undefined
-      if (value && value.input === impactInput(coin.id, row) && ["positive", "negative", "neutral", "unknown"].includes(value.label)) labels.push(value)
+      const age = value ? Date.now() - Date.parse(value.classifiedAt) : Infinity
+      if (value && age >= 0 && age < (value.label === "unknown" ? 1_800_000 : 21_600_000) && value.input === impactInput(coin.id, row) && ["positive", "negative", "neutral", "unknown"].includes(value.label)) labels.push(value)
       else missing.push(row)
     }
     if (!missing.length) return { coinId: coin.id, model: config.model, labels, newlyReviewed: 0 }
@@ -111,14 +112,17 @@ export function createImpactReviewer(options: {
       return { coinId: coin.id, model: config.model, labels, newlyReviewed: 0, pending: missing.length }
     }
     if (await store.get(`${jobKey}:failed`)) throw new ReviewError("A recent impact review failed. Wait a minute before retrying.", 429)
-    if (await store.get(jobKey)) throw new ReviewError("An impact review is already running. Please retry shortly.", 429)
+    const lease = await store.get(jobKey) as { expires?: number } | undefined
+    if (lease && typeof lease.expires === "number" && lease.expires > Date.now()) throw new ReviewError("An impact review is already running. Please retry shortly.", 429)
     if (busy) throw new ReviewError("Another asset is being reviewed. Please retry shortly.")
     busy = true
     const owner = randomUUID()
     try {
       // A short shared lease reduces overlapping work; Runtime Cache is not a
       // transactional lock, so simultaneous cold instances can still race.
-      await store.set(jobKey, owner, 260)
+      await store.set(jobKey, { owner, expires: Date.now() + 260_000 }, 260)
+      const savedLease = await store.get(jobKey) as { owner?: string } | undefined
+      if (savedLease?.owner !== owner) throw new ReviewError("The shared review cache could not confirm this task. Please retry later.")
       const id = await resolveAgent(config, signal)
       const registry = new Map(missing.map((row) => [row.url, { url: row.url, title: row.title, origin: "feed" as const }]))
       const read = createEvidenceReader(registry, signal, fetcher)
@@ -153,7 +157,8 @@ export function createImpactReviewer(options: {
       throw error
     } finally {
       busy = false
-      if (await store.get(jobKey).catch(() => undefined) === owner) await store.delete(jobKey).catch(() => {})
+      const lease = await store.get(jobKey).catch(() => undefined) as { owner?: string } | undefined
+      if (lease?.owner === owner) await store.delete(jobKey).catch(() => {})
     }
   }
 }
