@@ -13,6 +13,7 @@
     "check:server": "node scripts/check-server-build.mjs"
   },
   "dependencies": {
+    "@vercel/functions": "^3.10.1",
     "fast-xml-parser": "^5.11.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

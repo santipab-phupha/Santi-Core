@@ -56,3 +56,7 @@
   .impact-coverage time { width: 100%; margin-left: 0; }
 }
 @media (prefers-reduced-motion: reduce) { .impact-segment, .impact-meter, .impact-analyze { animation: none; transition: none; } }
+.impact-review-status { margin: 12px 0 0; color: #71628c; font-size: 12px; line-height: 1.6; }
+.impact-review-status button { border: 0; background: #f0e9ff; color: #7139c7; border-radius: 8px; padding: 3px 9px; cursor: pointer; font: inherit; }
+.impact-review-running { color: #803de4; }
+.impact-evidence blockquote { margin: 8px 0; padding: 8px 12px; border-left: 2px solid #d3b8fa; color: #736485; font-size: 12px; line-height: 1.6; }

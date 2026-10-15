@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react"
 import type { FeedResponse, MarketCoin } from "./data-types"
 import { analyzeCoinImpact, impactLabels } from "./coin-impact"
+import { impactInput, reviewedEvidence } from "./impact-types"
+import useImpactReview from "./useImpactReview"
 import type { ImpactTone } from "./coin-impact"
 import "./coin-impact.css"
 
@@ -22,12 +24,16 @@ export default function CoinImpact({ coin, feed, now, marketStale, feedError, lo
   loading: boolean
   onAnalyze: () => void
 }) {
-  const result = useMemo(() => analyzeCoinImpact({ coin, feed, now, marketStale, feedError }),
+  const base = useMemo(() => analyzeCoinImpact({ coin, feed, now, marketStale, feedError }),
     [coin, feed, now, marketStale, feedError])
+  const reviewKey = JSON.stringify(base.evidence.filter((item) => !item.id.startsWith("supply:")).map((item) => impactInput(coin.id, item))) + Math.floor(now / 1_800_000)
+  const agent = useImpactReview(coin.id, reviewKey, Boolean(feed && base.feedCurrent && base.marketCurrent && !feedError))
+  const reviewed = reviewedEvidence(coin.id, base.evidence, agent.review, base.feedCurrent && base.marketCurrent && !feedError)
+  const result = { ...base, ...reviewed }
   const [expanded, setExpanded] = useState(false)
   const [filter, setFilter] = useState<ImpactTone | null>(null)
   const total = result.evidence.length
-  const pending = loading && !feed
+  const pending = (loading && !feed) || (agent.busy && !total)
   const visible = filter ? result.evidence.filter((item) => item.tone === filter) : result.evidence
   const evidenceId = `impact-evidence-${coin.id}`
   const selectTone = (tone: ImpactTone) => {
@@ -52,6 +58,12 @@ export default function CoinImpact({ coin, feed, now, marketStale, feedError, lo
             title={`${impactLabels[tone]}: ${result.counts[tone]} sources`}
           />
         ))}
+      </div>
+      <div className="impact-review-status" role="status">
+        {agent.busy ? <span className="impact-review-running">✦ Reviewing news for {coin.symbol}…</span>
+          : agent.error ? <span>{agent.error} <button onClick={agent.retry}>Retry review</button></span>
+          : !base.feedCurrent || !base.marketCurrent ? <span>Fresh data is needed before Agent review.</span>
+          : <span>✦ {agent.review?.coinId === coin.id ? "Agent reviewed" : "Awaiting Agent review"} · {total} signals{result.context.length ? ` · ${result.context.length} context` : ""}{result.pending.length ? ` · ${result.pending.length} awaiting review` : ""}</span>}
       </div>
       <div className="impact-bottom"><div className="impact-legend" aria-label="Filter evidence by impact">
         {tones.map((tone) => (
@@ -82,17 +94,20 @@ export default function CoinImpact({ coin, feed, now, marketStale, feedError, lo
                 </div>
                 <a href={item.url} target="_blank" rel="noreferrer">{item.title} <span aria-hidden="true">↗</span></a>
                 <p>{item.reason}</p>
-                <small>{item.source} · {item.domain}</small>
+                <small>{item.source} · {item.domain}{item.agent ? ` · Agent · ${item.agent.basis}` : ""}</small>
+                {item.agent?.quote && <blockquote>{item.agent.quote}</blockquote>}
               </article>
             ))}
             {!visible.length && <p className="impact-empty">{pending ? "Gathering evidence…" : "No evidence in this category yet"}</p>}
           </div>
+          {result.context.length > 0 && <details className="impact-method"><summary>Context · {result.context.length}</summary>{result.context.map((item) => <article key={item.id}><a href={item.url} target="_blank" rel="noreferrer">{item.title} ↗</a><p>{item.reason}</p></article>)}</details>}
+          {result.pending.length > 0 && <p className="impact-empty">{result.pending.length} items awaiting Agent review. Unreviewed news is excluded from the bar.</p>}
           {result.gaps.length > 0 && <div className="impact-gaps">{result.gaps.map((gap) => <p key={gap}>{gap}</p>)}</div>}
           <details className="impact-method">
             <summary>Methodology and coverage</summary>
-            <p>Rule-based labels use publisher headlines from the last 72 hours. They do not read full articles, use an AI model, or extract TradingView data. Conditional, negated and broad market headlines are inconclusive. Exact duplicate URLs and titles are removed; different reports of the same event may remain.</p>
-            <p>Tokenomics uses CoinGecko supply data and up to 25 upcoming Tokenomist cliff unlocks, filtered to this asset within 30 days. An unlock of at least 1% of circulating supply within 7 days is labelled potential supply pressure. This rule has not been validated for predictive accuracy and does not establish actual selling. Supply totals or a missing unlock are not positive signals.</p>
-            <p>The bar shows the share of evidence labels, not price probabilities. Different domains do not establish independent confirmation. Coverage is limited to 12 asset headlines, 6 market headlines, 6 tokenomics items and 1 supply snapshot. Bear/Bull uses ElevenLabs Agents for a separate analysis and debate.</p>
+            <p>An ElevenLabs Agent reviews each eligible item for the selected asset using the headline, an available bounded article excerpt, or structured unlock data. Each label includes a reason and an exact supporting excerpt. Neutral background and supply snapshots appear under Context and do not enter the bar. Pending or failed reviews are not labelled Inconclusive. Mixed or insufficient relevant evidence can remain Inconclusive. This is event-impact interpretation, not a price forecast.</p>
+            <p>Tokenomics uses CoinGecko supply data and up to 25 upcoming Tokenomist cliff unlocks, filtered to this asset within 30 days. The Agent considers the supplied unlock date and amount; an unlock does not establish actual selling. Supply totals or a missing unlock are not positive signals. Duplicate URLs and titles are removed, but different reports of the same event may remain.</p>
+            <p>The bar shows the share of Agent-reviewed signals, not price probabilities. Results are cached per asset and evidence item; new or changed items need review. Different domains do not establish independent confirmation. Coverage is limited to 12 asset headlines, 6 market headlines, 6 tokenomics items and 1 supply snapshot. Bear/Bull uses ElevenLabs Agents for a separate analysis and debate.</p>
             <a href="https://tokenomist.ai/learn/glossary-term/unlocked-supply" target="_blank" rel="noreferrer">Learn about unlocked supply at Tokenomist ↗</a>
           </details>
         </div>

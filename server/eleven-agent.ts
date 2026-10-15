@@ -8,7 +8,7 @@ export type AgentTask = {
   config: AgentsConfig
   agentId: string
   prompt: string
-  kind: "submit_opening" | "submit_rebuttal"
+  kind: "submit_opening" | "submit_rebuttal" | "submit_classification"
   signal: AbortSignal
   readSource: (url: unknown) => Promise<unknown>
 }

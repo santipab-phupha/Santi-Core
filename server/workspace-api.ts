@@ -6,6 +6,7 @@ import { createAudioApi } from "./audio-api.ts"
 import { createBearBullApi } from "./bear-bull-api.ts"
 import { AnalysisError, buildDebateContext } from "./bear-bull-engine.ts"
 import { tokenomistClient } from "./tokenomist.ts"
+import { createImpactApi } from "./impact-api.ts"
 import type {
   FeedItem,
   FeedResponse,
@@ -246,6 +247,9 @@ export function createWorkspaceHandler(root = process.cwd()) {
     return current.pending
   }
   const audioApi = createAudioApi({ getConfig: () => elevenlabsConfig(root) })
+  const impactApi = createImpactApi({ getConfig: () => agentsConfig(root),
+    getData: async () => await Promise.all([getData("/api/market"), getData("/api/feed")]) as [MarketResponse, FeedResponse],
+  })
   const analysisApi = createBearBullApi({
     getConfig: () => agentsConfig(root),
     onResult: audioApi.register,
@@ -258,6 +262,7 @@ export function createWorkspaceHandler(root = process.cwd()) {
   })
   return async function handle(req: IncomingMessage, res: ServerResponse, next: () => void = () => { res.statusCode = 404; res.end("Not found") }) {
     const route = req.url?.split("?")[0] ?? ""
+    if (route === "/api/impact/review") { await impactApi(req, res); return }
     if (route.startsWith("/api/audio/")) { await audioApi.handle(req, res); return }
     if (route === "/api/analysis" || route === "/api/analysis/config") {
       await analysisApi(req, res)

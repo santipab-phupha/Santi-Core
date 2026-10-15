@@ -187,3 +187,48 @@ publicly cached. `POST /api/audio/manifest` verifies the signed transcript.
 To validate a deployment, check market/feed responses, analysis configuration,
 then run one analysis and play a segment. Never put provider keys in a browser
 request. GitHub pushes to the connected production branch deploy automatically.
+
+
+## Agent-reviewed Overviews
+
+The Overviews bar counts only completed asset-specific classifications from
+Santi-Core Impact Reviewer, a separate authenticated ElevenLabs text-only Agent
+using the configured Gemini model with model fallback disabled. Create it once
+with `node --experimental-strip-types scripts/setup-impact-agent.mts` using the
+existing server Agents credential. The server discovers the single exact agent
+name; no new client credential or production environment variable is needed.
+Use `--update` only when intentionally updating this app's existing reviewer.
+
+`POST /api/impact/review` accepts only a loaded market coin ID. The server builds
+the bounded evidence list, retrieves public publisher excerpts where available,
+and sends only missing classifications to the Agent in one batch. Every supplied
+item must receive exactly one valid label and an exact quote from the supplied
+headline, excerpt or structured data. Invented quotes, duplicate/unknown IDs and
+incomplete submissions fail the review rather than manufacturing a verdict.
+The model can classify a relevant macro event indirectly for a selected asset,
+but price-only headlines without an identified causal driver remain Context.
+
+Positive, Negative and genuinely mixed/insufficient Inconclusive items enter the
+bar. Neutral background and supply snapshots are shown under Context. Pending,
+failed and stale reviews are excluded, never counted as Inconclusive. Each signal
+shows the reason, source, actual evidence basis and supporting quotation. A
+headline-only assessment does not claim the full article was read. The ratios
+are shares of reviewed signals, not price probabilities or independent votes.
+The Bear/Bull debate remains separate and is not anchored to these labels.
+
+Results are keyed by asset, source content, model, credential fingerprint and
+classifier version. On Vercel the app uses namespaced Runtime Cache, shared
+between instances in the same region and environment and persistent across
+redeploys until expiry/eviction. Directional and Neutral labels last six hours;
+Inconclusive labels last 30 minutes. Local development uses a bounded in-memory
+cache. The client checks new/changed evidence and rechecks cache on a 30-minute
+boundary; it does not automatically retry failed paid tasks. Retry is explicit.
+One job runs per instance, a short shared lease reduces duplicate requests, and
+failures have a one-minute shared cooldown. Runtime Cache is not a transactional
+lock: simultaneous cold starts or separate regions can still duplicate work.
+It is not durable MongoDB storage or an exactly-once billing guarantee.
+
+Reviewing new items consumes ElevenLabs credits. Runtime Cache uses the existing
+Vercel account's cache allowance/usage. If the shared cache is unavailable, the
+server refuses to start a new paid review. No background scheduler or automatic
+full-market classification is installed; only the selected asset is reviewed.
