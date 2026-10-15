@@ -85,6 +85,49 @@ test("impact reasoning budget must match hosted configuration before a paid conv
     assert.equal(sockets, 0)
   }
 })
+
+test("a prose-only completion gets one in-session submission reminder, never a new conversation", async () => {
+  let sockets=0,turns=0
+  const run=createAgentRunner({fetcher:provider(),socketFactory:()=>{
+    sockets++
+    const socket=new MockSocket()
+    socket.onSend=value=>{
+      if(value.type==="conversation_initiation_client_data")socket.message({type:"conversation_initiation_metadata"})
+      if(value.type==="user_message"){
+        turns++
+        if(turns===1)socket.message({type:"agent_response",agent_response_event:{agent_response:"Unstructured prose"}})
+        else {
+          assert.match(value.text,/submit_answer exactly once/)
+          socket.message({type:"client_tool_call",client_tool_call:{tool_name:"submit_answer",tool_call_id:"answer",parameters:{summary:"Structured answer",sections:[],gaps:[]}}})
+        }
+      }
+    }
+    return socket as unknown as WebSocket
+  }})
+  assert.deepEqual(await run(task({kind:"submit_answer"})),{summary:"Structured answer",sections:[],gaps:[]})
+  assert.equal(sockets,1);assert.equal(turns,2)
+})
+
+test("repeated prose stops without retrying a paid session and abort clears the reminder", async () => {
+  for(const cancel of [false,true]){
+    let sockets=0,turns=0
+    const controller=new AbortController()
+    const run=createAgentRunner({fetcher:provider(),socketFactory:()=>{
+      sockets++
+      const socket=new MockSocket()
+      socket.onSend=value=>{
+        if(value.type==="conversation_initiation_client_data")socket.message({type:"conversation_initiation_metadata"})
+        if(value.type==="user_message"){
+          turns++;socket.message({type:"agent_response",agent_response_event:{agent_response:"Prose is not a report"}})
+          if(cancel)controller.abort()
+        }
+      }
+      return socket as unknown as WebSocket
+    }})
+    await assert.rejects(run(task({signal:controller.signal})),cancel?{name:"AbortError"}:{code:"incomplete_output"})
+    assert.equal(sockets,1);assert.equal(turns,cancel?1:2)
+  }
+})
 test("untrusted signed destinations, provider bodies, and retries cannot leak secrets",async()=>{
   let calls=0
   const run=createAgentRunner({fetcher:async()=>{calls++;return new Response("private-provider-secret",{status:403})}})

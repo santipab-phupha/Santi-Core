@@ -68,15 +68,19 @@ export function createAgentRunner({ fetcher = fetch, socketFactory = (url: strin
       let reads = 0
       let searches = 0
       let size = 0
+      let submissionReminderSent = false
+      let submissionTimer: ReturnType<typeof setTimeout> | undefined
       const calls = new Set<string>()
       function finish(error?: unknown, value?: unknown) {
         if (settled) return
         settled = true
+        clearTimeout(submissionTimer)
         signal.removeEventListener("abort", abort)
         try { socket.close(1000, "Task finished") } catch { /* connection not established */ }
         if (error) reject(error); else resolve(value)
       }
-      function abort() { finish(signal.reason) }
+      function abort() { finish(signal.reason?.name === "TimeoutError"
+        ? new AgentError("timeout", "The agent timed out before submitting its report. Please try again later.") : signal.reason) }
       function send(value: unknown) { if (!settled && socket.readyState === 1) socket.send(JSON.stringify(value)) }
       signal.addEventListener("abort", abort, { once: true })
       socket.addEventListener("open", () => send({ type: "conversation_initiation_client_data" }))
@@ -93,7 +97,23 @@ export function createAgentRunner({ fetcher = fetch, socketFactory = (url: strin
             send({ type: "user_message", text: prompt })
           }
           if (data.type === "error") throw new AgentError("agents_unavailable", "ElevenLabs Agents could not complete this task. Check permissions, the model and account credits.")
+          // A text-only agent can finish with prose after reading a source and
+          // then wait indefinitely for a user turn. Request the required tool
+          // once in this same session; prose is never treated as a valid report.
+          if (data.type === "agent_response" && !reading) {
+            clearTimeout(submissionTimer)
+            submissionTimer = setTimeout(() => {
+              if (settled || reading) return
+              if (submissionReminderSent) {
+                finish(new AgentError("incomplete_output", "The agent answered without submitting its structured report. Please try again later."))
+                return
+              }
+              submissionReminderSent = true
+              send({ type: "user_message", text: `Finish the existing task now by calling ${kind} exactly once using the evidence already supplied. Preserve all evidence gaps and exact source URLs. Do not search again, answer in prose, or invent missing evidence.` })
+            }, 2000)
+          }
           if (data.type !== "client_tool_call") return
+          clearTimeout(submissionTimer)
           const call = data.client_tool_call
           if (!call || typeof call.tool_call_id !== "string" || calls.has(call.tool_call_id)) throw new AgentError("invalid_output", "The agent returned a duplicate or invalid tool call.")
           calls.add(call.tool_call_id)
