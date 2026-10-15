@@ -20,9 +20,28 @@ export default function useImpactReview(coinId: string, inputKey: string, enable
     const timer = window.setTimeout(() => {
       void (async () => {
         try {
-          const response = await fetch("/api/impact/review", { method: "POST", signal: controller.signal,
+          let response = await fetch("/api/impact/review", { method: "POST", signal: controller.signal,
             headers: { "Content-Type": "application/json" }, body: JSON.stringify({ coinId }) })
-          const value = await response.json() as ImpactReview & { error?: string }
+          let value = await response.json() as ImpactReview & { error?: string }
+          if (response.status === 429) {
+            // Other visitors may own the task. GET reads cached labels only;
+            // polling never starts a new paid classification or retries POST.
+            for (let poll = 0; poll < 48; poll++) {
+              await new Promise<void>((resolve, reject) => {
+                if (controller.signal.aborted) { reject(controller.signal.reason); return }
+                const abort = () => { clearTimeout(timer); reject(controller.signal.reason) }
+                const timer = window.setTimeout(() => { controller.signal.removeEventListener("abort", abort); resolve() }, 5000)
+                controller.signal.addEventListener("abort", abort, { once: true })
+              })
+              response = await fetch(`/api/impact/review?coinId=${encodeURIComponent(coinId)}`, { signal: controller.signal, cache: "no-store" })
+              value = await response.json()
+              if (!response.ok) break
+              if (value.coinId !== coinId || !Array.isArray(value.labels)) throw new Error("The agent returned an invalid review.")
+              if (!controller.signal.aborted) setReview(value)
+              if (!value.pending) break
+            }
+            if (response.ok && value.pending) throw new Error("The review is still pending. Please retry shortly.")
+          }
           if (!response.ok) throw new Error(value.error || "Could not review news impact.")
           if (value.coinId !== coinId || !Array.isArray(value.labels)) throw new Error("The agent returned an invalid review.")
           if (!controller.signal.aborted) {

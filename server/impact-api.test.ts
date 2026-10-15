@@ -16,7 +16,8 @@ test("impact endpoint rejects foreign origins, arbitrary evidence, unknown asset
   const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/impact/review`
   const post = (body: unknown, headers: Record<string, string> = {}) => fetch(url, { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(body) })
   try {
-    assert.equal((await fetch(url)).status, 405)
+    assert.equal((await fetch(url, { method: "PUT" })).status, 405)
+    assert.equal((await fetch(url)).status, 400)
     assert.equal((await post({ coinId: "bitcoin" }, { Origin: "https://evil.example" })).status, 403)
     assert.equal((await post({ coinId: "bitcoin", evidence: "invented news" })).status, 400)
     assert.equal((await post({ coinId: "unknown" })).status, 400)

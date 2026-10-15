@@ -232,3 +232,5 @@ Reviewing new items consumes ElevenLabs credits. Runtime Cache uses the existing
 Vercel account's cache allowance/usage. If the shared cache is unavailable, the
 server refuses to start a new paid review. No background scheduler or automatic
 full-market classification is installed; only the selected asset is reviewed.
+
+When another visitor is already reviewing the same asset, the UI polls `GET /api/impact/review?coinId=...` for cached results only. GET never starts a paid task. Completed partial labels can appear while the remaining items are pending. Closing or switching assets cancels the wait.

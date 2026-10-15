@@ -88,7 +88,7 @@ export function createImpactReviewer(options: {
     if (matches.length !== 1 || !/^agent_[a-zA-Z0-9]+$/.test(matches[0].agent_id)) throw new ReviewError("Set up exactly one Santi-Core Impact Reviewer agent before reviewing news.")
     return agentId = matches[0].agent_id
   }
-  return async function review(coin: MarketCoin, market: MarketResponse, feed: FeedResponse, signal: AbortSignal): Promise<ImpactReview> {
+  return async function review(coin: MarketCoin, market: MarketResponse, feed: FeedResponse, signal: AbortSignal, readOnly = false): Promise<ImpactReview> {
     const config = options.getConfig()
     if (!config.apiKey) throw new ReviewError("The ElevenLabs Agents connection is not configured.")
     const base = analyzeCoinImpact({ coin, feed, now: Date.now(), marketStale: market.stale })
@@ -106,8 +106,13 @@ export function createImpactReviewer(options: {
     }
     if (!missing.length) return { coinId: coin.id, model: config.model, labels, newlyReviewed: 0 }
     const jobKey = `${prefix}job:${coin.id}`
+    if (readOnly) {
+      if (await store.get(`${jobKey}:failed`)) throw new ReviewError("The impact review failed. Please retry shortly.")
+      return { coinId: coin.id, model: config.model, labels, newlyReviewed: 0, pending: missing.length }
+    }
     if (await store.get(`${jobKey}:failed`)) throw new ReviewError("A recent impact review failed. Wait a minute before retrying.", 429)
-    if (busy || await store.get(jobKey)) throw new ReviewError("An impact review is already running. Please retry shortly.", 429)
+    if (await store.get(jobKey)) throw new ReviewError("An impact review is already running. Please retry shortly.", 429)
+    if (busy) throw new ReviewError("Another asset is being reviewed. Please retry shortly.")
     busy = true
     const owner = randomUUID()
     try {

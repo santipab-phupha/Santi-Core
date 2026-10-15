@@ -15,6 +15,7 @@ export type ImpactReview = {
   model: string
   labels: ImpactClassification[]
   newlyReviewed: number
+  pending?: number
 }
 export const impactInput = (coinId: string, row: ImpactEvidence) =>
   JSON.stringify([coinId, row.id, row.url, row.title, row.at, row.scope, row.scope === "tokenomics" ? row.reason : ""])

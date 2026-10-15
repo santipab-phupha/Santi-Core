@@ -75,6 +75,15 @@ test("stale inputs and unavailable shared cache do not start paid work", async (
   assert.equal(calls, 0)
 })
 
+test("read-only polling returns pending evidence without starting a paid task", async () => {
+  let calls = 0
+  const reviewer = createImpactReviewer({ getConfig: () => config, store: memory(), runTask: async () => { calls++; throw new Error("must not run") } })
+  const value = await reviewer(coin(), market(), feed(), signal(), true)
+  assert.equal(value.pending, 1)
+  assert.equal(value.newlyReviewed, 0)
+  assert.equal(calls, 0)
+})
+
 test("incomplete model output is not cached as a verdict and has a cooldown", async () => {
   let calls = 0
   const reviewer = createImpactReviewer({ getConfig: () => config, store: memory(), fetcher: discovery, readExcerpt: async () => "", runTask: async () => { calls++; return { labels: [] } } })
