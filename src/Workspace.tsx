@@ -542,11 +542,14 @@ function FeedSection({
   reviews: NewsReviews
 }) {
   const [kind, setKind] = useState<"All" | FeedItem["kind"]>("All")
+  const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest")
   const [visible, setVisible] = useState(9)
   const filtered = useMemo(
     () =>
       [...(resource.data?.items ?? []), ...supplySnapshots(coins)]
-        .sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt))
+        .sort((a, b) => sortOrder === "newest"
+          ? Date.parse(b.publishedAt) - Date.parse(a.publishedAt)
+          : Date.parse(a.publishedAt) - Date.parse(b.publishedAt))
         .filter(
           (item) =>
             (kind === "All" || item.kind === kind) &&
@@ -554,9 +557,9 @@ function FeedSection({
               .toLowerCase()
               .includes(query.toLowerCase()),
         ),
-    [resource.data, coins, kind, query],
+    [resource.data, coins, kind, query, sortOrder],
   )
-  useEffect(() => setVisible(9), [query, kind])
+  useEffect(() => setVisible(9), [query, kind, sortOrder])
   const latest = resource.data?.items[0]?.publishedAt
   return (
     <section className="feed-section" id="feed" aria-labelledby="feed-heading">
@@ -598,9 +601,15 @@ function FeedSection({
             </button>
           ))}
         </div>
-        <span className="feed-sort">
-          Newest first <span>↓</span>
-        </span>
+        <button
+          type="button"
+          className="feed-sort"
+          onClick={() => setSortOrder(order => order === "newest" ? "oldest" : "newest")}
+          title={sortOrder === "newest" ? "Switch to oldest first" : "Switch to newest first"}
+        >
+          {sortOrder === "newest" ? "Newest first" : "Oldest first"}
+          <span aria-hidden="true">{sortOrder === "newest" ? "↓" : "↑"}</span>
+        </button>
       </div>
       {resource.error && (
         <ErrorNotice message={resource.error} onRetry={resource.refresh} />
