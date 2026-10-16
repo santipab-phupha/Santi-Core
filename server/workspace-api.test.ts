@@ -1,6 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { parseFeed, plainText, workspaceApi, createWorkspaceHandler } from "./workspace-api.ts"
+import { parseFeed, plainText, createWorkspaceHandler } from "./workspace-api.ts"
+import { workspaceApi } from "./vite-workspace-api.ts"
 
 test("RSS preserves dates and publishers, labels tokenomics and rejects unsafe links", () => {
   const xml = `<rss><channel>

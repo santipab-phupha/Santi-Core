@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 import path from 'node:path'
 
 import siteConfiguration from './.figma/make/site.json'
-import { workspaceApi } from './server/workspace-api'
+import { workspaceApi } from './server/vite-workspace-api'
 
 
 // Vite config — https://vitejs.dev/config/

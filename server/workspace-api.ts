@@ -1,4 +1,3 @@
-import type { Plugin, Connect } from "vite"
 import type { IncomingMessage, ServerResponse } from "node:http"
 import { join } from "node:path"
 import { XMLParser } from "fast-xml-parser"
@@ -338,24 +337,4 @@ export function createWorkspaceHandler(root = process.cwd()) {
     startLocalSourceReviews() { if (localSourceReviewsEnabled(root)) sources.start() },
     stopSourceReviews: sources.stop,
   })
-}
-export function workspaceApi(): Plugin {
-  let handler = createWorkspaceHandler()
-  const middleware: Connect.NextHandleFunction = (req, res, next) => {
-    void handler(req, res, next).catch(next)
-  }
-  return {
-    name: "santi-workspace-api",
-    configResolved(config) {
-      handler = createWorkspaceHandler(config.root)
-    },
-    configureServer(server) {
-      server.middlewares.use(middleware)
-      handler.startLocalSourceReviews()
-      server.httpServer?.once("close", () => { void handler.stopSourceReviews() })
-    },
-    configurePreviewServer(server) {
-      server.middlewares.use(middleware)
-    },
-  }
 }

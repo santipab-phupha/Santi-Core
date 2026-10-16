@@ -9,6 +9,14 @@ import { createServer } from "node:http"
 // .ts -> .js rewrites in a deployed function's import graph.
 const root = process.cwd()
 const output = path.join(root, ".cache", "server-check")
+// Check the API graph independently of Vite's bundler module resolution.
+// This catches development-only type imports that break Vercel's API compiler.
+execFileSync(process.execPath, [
+  "node_modules/typescript/bin/tsc", "--noEmit", "--module", "ESNext",
+  "--moduleResolution", "node", "--target", "ES2020", "--strict",
+  "--skipLibCheck", "--allowImportingTsExtensions", "--allowSyntheticDefaultImports",
+  "api/workspace.ts",
+], { stdio: "inherit" })
 execFileSync(process.execPath, ["node_modules/typescript/bin/tsc", "--noEmit", "false", "--outDir", output], { stdio: "inherit" })
 const entry = path.join(output, "api", "workspace.js")
 assert.match(readFileSync(entry, "utf8"), /workspace-api\.js/)
